@@ -111,6 +111,16 @@
   }
   .odyssey-fab.is-open .odyssey-fab-img { display: none; }
   .odyssey-fab.is-open .odyssey-fab-close { display: flex; }
+  /* Efek "pop"/bounce kecil di tombol FAB tiap kali popup di-toggle (buka
+     ATAU tutup) — class ini ditambah-cabut lewat JS (lihat bounceFab()),
+     BUKAN nempel permanen di ".is-open", biar animasinya bisa main ulang
+     tiap kali di-toggle (buka maupun tutup), bukan cuma sekali pas kebuka. */
+  .odyssey-fab.fab-bounce { animation: odysseyFabPop .32s cubic-bezier(.34,1.56,.64,1); }
+  @keyframes odysseyFabPop {
+    0% { transform: scale(.8); }
+    55% { transform: scale(1.16); }
+    100% { transform: scale(1); }
+  }
   .odyssey-fab-label {
     font-size: 10.5px; font-weight: 700; letter-spacing: .3px; color: #f1f5f9;
     background: rgba(15,23,42,.8); padding: 2px 9px; border-radius: 8px;
@@ -126,8 +136,33 @@
     background: #0b1329; border: 1px solid #1e293b; border-radius: 14px;
     box-shadow: 0 12px 40px rgba(0,0,0,.5); overflow: hidden;
     display: none; flex-direction: column;
+    /* Titik jangkar animasi di pojok kanan-bawah (deket FAB asalnya
+       muncul) biar bounce-nya kerasa "keluar dari" tombol FAB, bukan
+       ngembang dari tengah kotak. */
+    transform-origin: bottom right;
   }
-  .odyssey-popup.show { display: flex; }
+  .odyssey-popup.show {
+    display: flex;
+    animation: odysseyPopupIn .4s cubic-bezier(.34,1.56,.64,1) both;
+  }
+  /* Class transisi pas lagi NUTUP popup — dipasang sesaat oleh JS sebelum
+     "show" beneran dicabut, jadi sempet keliatan animasi mengecil+menghilang
+     dulu (bukan langsung ilang instan kayak sebelumnya). Durasi animasi di
+     bawah ini WAJIB disamain sama ODYSSEY_CLOSE_ANIM_MS di JS. */
+  .odyssey-popup.closing {
+    display: flex;
+    animation: odysseyPopupOut .22s cubic-bezier(.4,0,1,1) both;
+  }
+  @keyframes odysseyPopupIn {
+    0%   { opacity: 0; transform: scale(.75) translateY(24px); }
+    55%  { opacity: 1; transform: scale(1.04) translateY(-4px); }
+    80%  { transform: scale(.98) translateY(1px); }
+    100% { opacity: 1; transform: scale(1) translateY(0); }
+  }
+  @keyframes odysseyPopupOut {
+    0%   { opacity: 1; transform: scale(1) translateY(0); }
+    100% { opacity: 0; transform: scale(.8) translateY(16px); }
+  }
   /* Handle resize custom — WAJIB elemen terpisah di atas iframe (bukan pakai
      CSS resize:both bawaan), karena iframe di dalam .odyssey-popup-body
      nutupin seluruh area kotak termasuk pojoknya, jadi grip resize bawaan
@@ -202,6 +237,12 @@
     border: none; border-radius: 0; box-shadow: none;
   }
   .odyssey-popup.tab-mode .odyssey-resize-handle { display: none; }
+  /* Mode tab-penuh SENGAJA gak ikutan animasi bounce buka/tutup punya versi
+     popup mengambang di atas — full-screen kepencet transform scale/translate
+     bakal keliatan aneh (bukan "muncul dari pojok FAB" lagi). Jadi animasi
+     "in"/"out" di atas cuma jalan buat popup mengambang, bukan mode tab. */
+  .odyssey-popup.tab-mode.show,
+  .odyssey-popup.tab-mode.closing { animation: none; }
 </style>
 </head>
 <body>
@@ -402,14 +443,56 @@
     fabWrap.classList.toggle("odyssey-hidden", !shouldShow);
   }
 
+  // Durasi ini WAJIB sama persis kayak animasi ".odyssey-popup.closing"
+  // (odysseyPopupOut) di CSS — dipakai buat nunda display:none sampai
+  // animasi mengecil+menghilangnya beneran kelar dulu.
+  var ODYSSEY_CLOSE_ANIM_MS = 220;
+  var odysseyCloseTimer = null;
+
+  // Bikin tombol FAB "pop" sekali tiap popup di-toggle (buka ATAU tutup).
+  // Class-nya dicabut dulu + dipaksa reflow (offsetWidth) sebelum ditambah
+  // lagi, biar animasinya bisa main ULANG walau class-nya sama kayak
+  // sebelumnya (browser gak nge-replay animasi kalau class-nya gak
+  // berubah state).
+  function bounceFab() {
+    var fab = document.getElementById("odysseyFab");
+    if (!fab) return;
+    fab.classList.remove("fab-bounce");
+    void fab.offsetWidth;
+    fab.classList.add("fab-bounce");
+  }
+
   function setOdysseyMode(mode) {
     if (mode === odysseyMode) return;
+    var prevMode = odysseyMode;
     odysseyMode = mode;
     var popup = document.getElementById("odysseyPopup");
     var fab = document.getElementById("odysseyFab");
+    fab.classList.toggle("is-open", mode === "popup");
+    bounceFab();
+
+    if (odysseyCloseTimer) { clearTimeout(odysseyCloseTimer); odysseyCloseTimer = null; }
+
+    // Nutup popup mengambang (bukan mode tab): mainin animasi bounce-out
+    // dulu ("closing"), baru beneran dicabut "show"-nya (display:none)
+    // setelah animasi kelar — biar keliatan mengecil+menghilang, bukan
+    // ilang instan kayak sebelumnya.
+    if (prevMode === "popup" && mode === "hidden") {
+      popup.classList.remove("show");
+      popup.classList.add("closing");
+      odysseyCloseTimer = window.setTimeout(function () {
+        odysseyCloseTimer = null;
+        // Guard: kalau keburu dibuka lagi sebelum timeout ini kepanggil,
+        // jangan nutup ulang popup yang udah kebuka lagi.
+        if (odysseyMode !== "hidden") return;
+        popup.classList.remove("closing");
+      }, ODYSSEY_CLOSE_ANIM_MS);
+      return;
+    }
+
+    popup.classList.remove("closing");
     popup.classList.toggle("show", mode !== "hidden");
     popup.classList.toggle("tab-mode", mode === "tab");
-    fab.classList.toggle("is-open", mode === "popup");
   }
 
   function openOdysseyPopup() {
