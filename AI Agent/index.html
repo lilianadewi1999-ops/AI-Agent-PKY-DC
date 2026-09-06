@@ -462,6 +462,52 @@
     fab.classList.add("fab-bounce");
   }
 
+  // Nempatin popup DEKAT posisi FAB SAAT INI (FAB kan bisa di-drag ke mana
+  // aja) — bukan nempel di pojok kanan-bawah layar secara tetap kayak
+  // sebelumnya. Dipanggil tiap kali popup mau dibuka.
+  // Default: nempel di ATAS FAB, rata sisi kanan popup = sisi kanan FAB
+  // (biar berasa "keluar dari" tombolnya). Kalau ruang di atas gak cukup
+  // (FAB lagi deket bagian atas layar), otomatis pindah ke BAWAH FAB.
+  // Posisi horizontal di-clamp biar gak kepotong tepi kiri/kanan layar.
+  function positionOdysseyPopupNearFab() {
+    var popup = document.getElementById("odysseyPopup");
+    var fabWrap = document.getElementById("odysseyFabWrap");
+    if (!popup || !fabWrap) return;
+
+    var GAP = 14, MARGIN = 8;
+    var fabRect = fabWrap.getBoundingClientRect();
+
+    // Popup lagi disembunyiin (display:none) pas fungsi ini kepanggil, jadi
+    // gak bisa ambil ukuran dari getBoundingClientRect (bakal kebaca 0).
+    // Ambil dari inline style peninggalan resize manual kalau ada, kalau
+    // enggak pakai default sesuai CSS (380x600), lalu clamp biar gak lebih
+    // gede dari viewport (niru batas min/max-width/height di CSS).
+    var popW = Math.min(parseFloat(popup.style.width) || 380, window.innerWidth - 2 * MARGIN);
+    var popH = Math.min(parseFloat(popup.style.height) || 600, window.innerHeight - 2 * MARGIN);
+
+    var left = fabRect.right - popW;
+    var top = fabRect.top - GAP - popH;
+    var originY = "bottom";
+
+    if (top < MARGIN) {
+      top = fabRect.bottom + GAP;
+      originY = "top";
+      if (top + popH > window.innerHeight - MARGIN) {
+        top = Math.max(MARGIN, window.innerHeight - MARGIN - popH);
+      }
+    }
+
+    var originX = "right";
+    if (left < MARGIN) { left = MARGIN; originX = "left"; }
+    if (left + popW > window.innerWidth - MARGIN) left = window.innerWidth - MARGIN - popW;
+
+    popup.style.left = left + "px";
+    popup.style.top = top + "px";
+    popup.style.right = "auto";
+    popup.style.bottom = "auto";
+    popup.style.transformOrigin = originY + " " + originX;
+  }
+
   function setOdysseyMode(mode) {
     if (mode === odysseyMode) return;
     var prevMode = odysseyMode;
@@ -489,6 +535,11 @@
       }, ODYSSEY_CLOSE_ANIM_MS);
       return;
     }
+
+    // Baru mau dibuka jadi popup mengambang (dari mode apapun sebelumnya) —
+    // hitung ulang posisinya biar nempel ke lokasi FAB SEKARANG, soalnya FAB
+    // bisa aja abis digeser ke tempat lain sejak terakhir popup ini dibuka.
+    if (mode === "popup") positionOdysseyPopupNearFab();
 
     popup.classList.remove("closing");
     popup.classList.toggle("show", mode !== "hidden");
@@ -530,13 +581,25 @@
     }
   });
 
-  // ===== FAB bisa di-drag (geser posisinya), tapi klik biasa (gak digeser)
-  // tetep kebaca sebagai "buka/tutup popup". Posisi terakhir diinget lewat
-  // localStorage biar gak balik ke pojok tiap refresh. =====
+  // ===== FAB bisa di-drag (geser posisinya), TAPI sekarang WAJIB "klik ke-2
+  // kali lalu tahan" dulu baru bisa mulai geser — klik pertama (tekan-lepas
+  // cepat tanpa gerak) tetep dianggap buka/tutup popup biasa. Ini nyegah
+  // kegeser gak sengaja pas user cuma niat klik doang.
+  // Cara kerjanya: tiap kali jari/mouse dilepas (mouseup/touchend), dicatat
+  // waktunya. Kalau tekan (mousedown/touchstart) BERIKUTNYA kejadian dalam
+  // rentang DOUBLE_PRESS_MS setelah lepas sebelumnya, tekan itu ditandai
+  // "armed" (siap digeser) — baru dari titik itu gerakan mouse/jari beneran
+  // mindahin FAB-nya. Kalau tekan pertama (belum "armed") malah digeser,
+  // gerakannya DIABAIKAN (FAB diem) dan gak dianggap klik juga (nyegah
+  // geser sekali tekan tanpa double-press dulu). Posisi terakhir diinget
+  // lewat localStorage biar gak balik ke pojok tiap refresh.
   (function setupOdysseyFabDrag() {
     var fab = document.getElementById("odysseyFabWrap");
     var POS_KEY = "odysseyFabPos_v1";
-    var dragging = false, moved = false, startX = 0, startY = 0, origX = 0, origY = 0;
+    var DOUBLE_PRESS_MS = 400;
+    var dragging = false, moved = false, armed = false, startX = 0, startY = 0, origX = 0, origY = 0;
+    var lastReleaseTime = 0;
+    var pendingToggleTimer = null;
 
     function clampPos(x, y) {
       var margin = 8;
@@ -570,17 +633,27 @@
     }
     function onDown(e) {
       dragging = true; moved = false;
+      // "Armed" cuma kalau tekan ini adalah tekan KE-2 yang kejadian gak
+      // lama setelah lepas tekan sebelumnya (pola klik-2x-tahan).
+      armed = (Date.now() - lastReleaseTime) <= DOUBLE_PRESS_MS;
+      // Kalau ini beneran tekan ke-2 yang nyusul cepet, batalin dulu
+      // rencana "toggle" dari tekan pertama (yang lagi nunggu timer di
+      // bawah) — soalnya sekuens ini ternyata mau geser, bukan klik biasa.
+      if (armed && pendingToggleTimer) { clearTimeout(pendingToggleTimer); pendingToggleTimer = null; }
       var rect = fab.getBoundingClientRect();
       var p = pointerXY(e);
       startX = p.x; startY = p.y; origX = rect.left; origY = rect.top;
-      fab.classList.add("dragging");
+      if (armed) fab.classList.add("dragging");
     }
     function onMove(e) {
       if (!dragging) return;
       var p = pointerXY(e);
       var dx = p.x - startX, dy = p.y - startY;
       if (Math.abs(dx) > 4 || Math.abs(dy) > 4) moved = true;
-      if (moved) {
+      // Gerakan cuma dieksekusi (mindahin FAB beneran) kalau tekan ini udah
+      // "armed" (tekan ke-2 dalam pola klik-2x-tahan). Tekan pertama yang
+      // digeser tanpa didahului double-press diabaikan total — FAB diem.
+      if (moved && armed) {
         if (e.cancelable) e.preventDefault();
         applyPos(origX + dx, origY + dy);
       }
@@ -589,12 +662,34 @@
       if (!dragging) return;
       dragging = false;
       fab.classList.remove("dragging");
-      if (moved) {
+      var releaseTime = Date.now();
+      if (moved && armed) {
         var rect = fab.getBoundingClientRect();
         savePos(applyPos(rect.left, rect.top));
+        // Reset biar lepas tangan setelah selesai geser gak lantas dianggap
+        // "tekan pertama" buat pola double-press berikutnya.
+        lastReleaseTime = 0;
+      } else if (!moved) {
+        // Klik biasa (gak digeser) — TAPI jangan langsung toggle sekarang.
+        // Tunggu dulu sebentar (DOUBLE_PRESS_MS) buat mastiin gak ada tekan
+        // KE-2 yang nyusul cepet setelah ini (indikasi awal gestur
+        // "klik-2x-tahan-seret" — kalau iya, toggle ini bakal DIBATALIN
+        // dari dalam onDown pas tekan ke-2 itu kedeteksi). Kalau emang
+        // gak ada susulan sampai timer abis, baru toggle beneran jalan —
+        // itu klik tunggal biasa.
+        if (pendingToggleTimer) clearTimeout(pendingToggleTimer);
+        pendingToggleTimer = window.setTimeout(function () {
+          pendingToggleTimer = null;
+          toggleOdysseyPopup();
+        }, DOUBLE_PRESS_MS);
+        lastReleaseTime = releaseTime;
       } else {
-        toggleOdysseyPopup(); // gak kegeser sama sekali = dianggap KLIK
+        // Tekan pertama nekat digeser tanpa didahului double-press —
+        // diabaikan total (gak toggle, gak digeser), tapi waktu lepasnya
+        // tetep dicatat siapa tau ini justru AWAL dari pola double-press.
+        lastReleaseTime = releaseTime;
       }
+      armed = false;
     }
 
     fab.addEventListener("mousedown", onDown);
