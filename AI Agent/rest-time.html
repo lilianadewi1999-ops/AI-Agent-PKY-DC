@@ -1359,14 +1359,15 @@
     //   ke tab ini (ke-trigger via event "visibilitychange" di bawah).
     // restOvertimeActiveItems  = karyawan yang lagi TAMPIL di modal yang kebuka sekarang
     //                             (bisa lebih dari 1 — modal-nya list, bukan 1 orang per popup)
-    // restOvertimePendingItems = karyawan yang KE-DETECT overtime tapi tab lagi
-    //                             gak aktif (document.hidden), nunggu di-flush begitu
-    //                             tab dibuka lagi
+    // restOvertimePendingItems = karyawan yang KE-DETECT overtime tapi modul
+    //                             Rest Time ini lagi gak ditampilin, nunggu
+    //                             di-flush begitu modul ini ditampilin lagi
     let restOvertimeNotifiedKeys = new Set();
     let restOvertimeActiveItems = [];
     let restOvertimePendingItems = [];
     let restOvertimeModalShowing = false;
     let restOvertimeAudioUnlocked = false;
+    let restTimeModuleWasVisible = true;
 
     // Browser (Chrome dkk) nge-block audio.play() lewat JS kalau BELUM ada
     // interaksi user (klik/ketik) di halaman ini duluan — makanya kadang popup
@@ -1387,6 +1388,20 @@
     document.addEventListener("click", unlockRestOvertimeAudio);
     document.addEventListener("keydown", unlockRestOvertimeAudio);
 
+    // Halaman ini (rest-time.html) dimuat sebagai IFRAME di app shell
+    // (index.html) dan cuma disembunyikan (bukan direload/dimatikan) pas
+    // user pindah ke modul lain (Inventory Control, dst) — jadi script-nya
+    // TETAP JALAN di background. document.visibilityState doang gak cukup
+    // buat ngecek ini, soalnya itu cuma ngecek status browser TAB (masih
+    // kebaca "visible" walau iframe-nya sendiri lagi disembunyiin app
+    // shell). Makanya ukuran render iframe ini sendiri ikut dicek — kalau
+    // app shell nyembunyiin iframe ini (display:none / lebar-tinggi 0),
+    // ukurannya otomatis collapse jadi 0x0.
+    function isRestTimeModuleVisible() {
+        if (document.visibilityState !== "visible") return false;
+        return document.documentElement.clientWidth > 0 && document.documentElement.clientHeight > 0;
+    }
+
     function checkRestOvertimeAlert(opsId, dateStr, breakOutTime, name, agency, dept) {
         let diffMinutes = Math.floor((new Date() - breakOutTime) / 60000);
         if (diffMinutes <= 60) return;
@@ -1394,8 +1409,8 @@
         if (restOvertimeNotifiedKeys.has(key)) return;
         restOvertimeNotifiedKeys.add(key);
         let item = { key: key, opsId: opsId, dateStr: dateStr, breakOutTime: breakOutTime, name: name, agency: agency, dept: dept };
-        if (document.visibilityState !== "visible") {
-            restOvertimePendingItems.push(item); // tab lagi gak aktif, taruh dulu di antrian
+        if (!isRestTimeModuleVisible()) {
+            restOvertimePendingItems.push(item); // modul ini lagi gak ditampilin, taruh dulu di antrian
             return;
         }
         addRestOvertimeItem(item);
@@ -1466,14 +1481,32 @@
         stopRestOvertimeSound();
     }
 
-    // Begitu tab ini aktif lagi, "flush" semua karyawan yang ke-detect
-    // overtime selagi tab tadi gak aktif — langsung dimasukin ke modal.
-    document.addEventListener("visibilitychange", function () {
-        if (document.visibilityState === "visible" && restOvertimePendingItems.length > 0) {
-            restOvertimePendingItems.forEach(function (item) { addRestOvertimeItem(item); });
-            restOvertimePendingItems = [];
+    // Dipanggil dari 2 tempat: event "visibilitychange" (browser tab
+    // ganti/minimize) DAN dari tick updateClock() tiap detik (buat nangkep
+    // kasus modul ini disembunyiin app shell lewat CSS, yang gak
+    // memicu event visibilitychange sama sekali karena browser TAB-nya
+    // sendiri gak berubah status).
+    function handleRestTimeModuleVisibilityChange() {
+        let nowVisible = isRestTimeModuleVisible();
+        if (nowVisible === restTimeModuleWasVisible) return;
+        restTimeModuleWasVisible = nowVisible;
+        if (nowVisible) {
+            // Balik ke modul ini: flush karyawan yang sempet ke-detect pas disembunyiin...
+            if (restOvertimePendingItems.length > 0) {
+                restOvertimePendingItems.forEach(function (item) { addRestOvertimeItem(item); });
+                restOvertimePendingItems = [];
+            }
+            // ...dan kalau ternyata popup-nya masih kebuka dari sebelumnya, lanjutin lagi suaranya.
+            if (restOvertimeModalShowing) playRestOvertimeSoundLoop();
+        } else {
+            // Pindah ke modul lain: BUNGKAM suaranya (biar gak keder-denger dari
+            // modul lain kayak Inventory Control), tapi popup/list-nya tetep
+            // disimpen apa adanya, nanti lanjut lagi begitu balik ke modul ini.
+            stopRestOvertimeSound();
         }
-    });
+    }
+
+    document.addEventListener("visibilitychange", handleRestTimeModuleVisibilityChange);
 
     function getWorkingDateStr(dateObj) {
         return dateObj.getFullYear() + "-" + String(dateObj.getMonth() + 1).padStart(2, '0') + "-" + String(dateObj.getDate()).padStart(2, '0');
@@ -1670,6 +1703,11 @@
         } else if (now.getSeconds() % 30 === 0) {
             renderAll();
         }
+        // Cek tiap detik apakah modul Rest Time ini masih ditampilin app shell
+        // atau lagi disembunyiin (pindah ke modul lain) — soalnya iframe modul
+        // ini tetep jalan di background walau disembunyiin, jadi harus dicek
+        // manual gini, bukan cuma nunggu event visibilitychange browser.
+        handleRestTimeModuleVisibilityChange();
         // Selagi popup overtime lagi kebuka, ikut refresh angka durasinya tiap
         // detik (bukan cuma pas nambah karyawan baru) biar "62 Menit" dst
         // keliatan jalan terus, gak beku di angka pas pertama muncul.
