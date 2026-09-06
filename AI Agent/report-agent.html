@@ -489,6 +489,16 @@ function simplifyErrorMessage(raw){
   return "Waduh, gagal ngambil jawaban AI bro. Coba tanya ulang sebentar lagi ya.";
 }
 
+// Tanggal lokal device user (BUKAN dari isi gambar) — dipakai khusus buat
+// header Report Antrian Inbound ECO/STD, format DD/MM/YYYY.
+function getLocalDateStr(){
+  const d = new Date();
+  const dd = String(d.getDate()).padStart(2, "0");
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const yyyy = d.getFullYear();
+  return `${dd}/${mm}/${yyyy}`;
+}
+
 async function askAgent(question, imageDataUrl){
   addMessage("user", question, null, imageDataUrl);
   // Kalau ada gambar, isi content jadi array format vision (OpenAI-compatible)
@@ -515,7 +525,20 @@ async function askAgent(question, imageDataUrl){
   // yang di-paste user (screenshot spreadsheet shift/permintaan/kehadiran).
   const dwKeywords = /\bdw\b|fulfillment|daily worker|reguler|on-?call/i;
   const isDwReport = dwKeywords.test(question || "");
-  const isDataQuery = isDwReport || dataKeywords.test(question || "") || !!imageDataUrl;
+  // Report ketiga: ANTRIAN INBOUND (ECO vs STD) — beda lagi dari 2 report di atas.
+  // Datanya BUKAN dari currentTrips (Firebase) DAN BUKAN dari tabel jadwal DW,
+  // tapi dari GAMBAR board antrian "PalangkarayaDC" (kolom Route & Status) yang
+  // di-paste user. Sengaja dibikin gampang triger-nya: kalau user CUMA paste
+  // gambar tanpa ngetik apa-apa (dan itu bukan gambar tabel DW), langsung
+  // dianggap minta Report Antrian ini — sesuai request awal "kirim gambar,
+  // Odyssey langsung generate Report". Kalau user ngetik kata kunci terkait
+  // (antrian/eco/std/dll) itu juga triger, meski ada teks lain.
+  const queueKeywords = /\bantrian\b|\beco\b|\bstd\b|antrian inbound|report antrian|queue report/i;
+  const isQueueReport = !isDwReport && (
+    queueKeywords.test(question || "") ||
+    (!!imageDataUrl && !(question || "").trim())
+  );
+  const isDataQuery = isDwReport || isQueueReport || dataKeywords.test(question || "") || !!imageDataUrl;
 
   const basePersona = `Kamu Odyssey — AI Agent yang awalnya dibikin buat bantu Shift Lead Sortation Center
 mantau trip Inbound (Line Haul dari origin ke DC), TAPI wawasan kamu gak kebatas itu doang. Kamu punya
@@ -598,6 +621,67 @@ Request DW Oncall: (angka) - [Actual: (angka)]  [GAP: (angka)]
 Total Request DW Oncall: (angka)
 Total Actual DW Oncall: (angka)
 GAP DW Oncall: (angka)  / [(persentase)%]
+
+${jsonFormatRule}`;
+  } else if (isQueueReport){
+    // Mode REPORT ANTRIAN INBOUND (ECO/STD) — sumber data JUGA dari GAMBAR
+    // (screenshot board "PalangkarayaDC"), sama kayak mode DW di atas, tapi
+    // kolom & kategorinya beda: yang dibaca cuma "Route" (buat pisahin
+    // ECO/STD) dan "Status" (buat hitung Antri/In Progress/Done/Incoming).
+    // Tanggal report PAKAI tanggal device lokal (getLocalDateStr()), BUKAN
+    // ditebak/diambil dari isi gambar.
+    const todayStr = getLocalDateStr();
+    systemPrompt = `${basePersona}
+
+Pertanyaan/gambar kali ini soal REPORT ANTRIAN INBOUND (ECO vs STD), beda topik dari report Late/Early
+Arrival trip Inbound maupun report DW Fulfillment. Sumber datanya ADALAH GAMBAR (screenshot board/tabel
+"PalangkarayaDC") yang dilampirkan user di pesan ini atau di pesan sebelumnya dalam percakapan ini —
+BUKAN dari data trip Firebase yang kamu tau. Kalau gak ada gambar tabel antrian yang dilampirkan sama
+sekali di percakapan ini, bilang aja terus terang minta user paste/lampirkan screenshot tabelnya dulu,
+JANGAN ngarang angka.
+
+Kalau di riwayat percakapan sebelumnya ada pembahasan topik LAIN (report trip Inbound, report DW
+Fulfillment, atau obrolan santai), ABAIKAN TOTAL itu buat jawaban kali ini — fokus CUMA ke gambar tabel
+antrian yang dilampirkan sekarang/terakhir.
+
+STRUKTUR TABEL di gambar punya banyak kolom (Route, Origin, Vendor, Nopol, Unit Type, TO, QTY Parcel,
+Arrival Time, Start Unloading, End Unloading, Status, Queue Duration, Unloading Duration, Total SLA,
+dst) — yang kamu BUTUHIN cuma kolom "Route" dan kolom "Status" di TIAP BARIS. Hitung SATU PER SATU baris
+yang BENERAN KELIATAN di gambar, jangan nebak/asumsi baris yang gak keliatan atau kepotong di luar frame.
+
+Pembeda grup ECO vs STD dari isi kolom "Route" (cocokkan persis, case-insensitive):
+- Route = "Sea" -> baris itu masuk grup ECO
+- Route = "Air" -> baris itu masuk grup STD
+- Nilai Route lain di luar "Sea"/"Air" (termasuk kosong) -> ABAIKAN baris itu, jangan dihitung di grup
+  manapun.
+
+Mapping isi kolom "Status" ke 4 kategori di report (cocokkan persis, case-insensitive):
+- "Pending" -> dihitung sebagai "Antri"
+- "Unloading" -> dihitung sebagai "In Progress"
+- "Done" -> dihitung sebagai "Done"
+- "Transporting" -> dihitung sebagai "Incoming"
+Nilai Status lain di luar 4 itu (misal "Loading Origin") TIDAK dihitung/diabaikan, jangan dipaksa masuk
+salah satu dari 4 kategori di atas.
+
+Tanggal report WAJIB pakai tanggal device/lokal user hari ini yaitu ${todayStr} (format DD/MM/YYYY) —
+JANGAN ambil atau nebak tanggal dari isi gambar sama sekali buat report ini.
+
+TEMPLATE WAJIB (ikuti PERSIS termasuk spasi & urutan, teks polos TANPA tanda bintang/simbol markdown
+apa pun, tiap baris di bawah = 1 item terpisah di array "replyLines", baris kosong = item string kosong
+""):
+
+PalangkaRaya DC ${todayStr}
+ECO
+(isi jumlah baris ECO berstatus Antri)Antri
+(isi jumlah baris ECO berstatus In Progress)In Progress
+(isi jumlah baris ECO berstatus Done)Done
+(isi jumlah baris ECO berstatus Incoming)Incoming
+<baris kosong>
+STD
+(isi jumlah baris STD berstatus Antri)Antri
+(isi jumlah baris STD berstatus In Progress)In Progress
+(isi jumlah baris STD berstatus Done)Done
+(isi jumlah baris STD berstatus Incoming)Incoming
 
 ${jsonFormatRule}`;
   } else if (!isDataQuery){
@@ -895,7 +979,7 @@ if (window.firebase && firebase.auth){
 
 (async function init(){
   await loadData();
-  addMessage("agent", "Halo bro, gua AI Agent buat mantau trip Inbound hari ini. Tanya aja, misal \"ada yang Late Arrival hari ini?\" atau \"yang paling lama durasinya berapa?\"");
+  addMessage("agent", "Halo bro, gua AI Agent buat mantau daily operasional & report Palangka Raya DC\"");
 })();
 </script>
 </body>
