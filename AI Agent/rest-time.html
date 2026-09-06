@@ -476,34 +476,15 @@
 </div>
 
 <!-- ==== MODAL POPUP: KARYAWAN ISTIRAHAT > 60 MENIT (REST TIME OVERTIME) ==== -->
+<!-- Bisa nampung LEBIH DARI 1 karyawan sekaligus (list bertambah kalau ada
+     yang overtime bareng), makanya field detail per-karyawan diganti jadi
+     satu container list (#restOvertimeListBody) yang di-render ulang oleh JS
+     tiap ada karyawan baru yang overtime / tiap ±30 detik selama modal ini kebuka. -->
 <div id="restOvertimeModal" class="modal-overlay" style="display:none;">
-    <div class="modal-box" style="width: 400px; text-align:center;">
+    <div class="modal-box" style="width: 420px; max-height: 82vh; display:flex; flex-direction:column; text-align:center;">
         <div style="font-size:38px; line-height:1; margin-bottom:6px;">⏰</div>
-        <h3 style="color:#b91c1c; text-align:center;">Istirahat Lebih dari 60 Menit!</h3>
-        <div style="display:flex; flex-direction:column; gap:8px; margin-top:10px; text-align:left; background:var(--table-header-bg); border-radius:8px; padding:12px 14px;">
-            <div>
-                <div style="font-size:11px; color:var(--text-muted); font-weight:700; text-transform:uppercase;">Nama</div>
-                <div id="restOvertimeName" style="font-size:15px; font-weight:700;"></div>
-            </div>
-            <div>
-                <div style="font-size:11px; color:var(--text-muted); font-weight:700; text-transform:uppercase;">OpsID</div>
-                <div id="restOvertimeOpsId" style="font-size:14px; font-weight:600; font-family:monospace;"></div>
-            </div>
-            <div>
-                <div style="font-size:11px; color:var(--text-muted); font-weight:700; text-transform:uppercase;">Dept / Agency</div>
-                <div id="restOvertimeDept" style="font-size:13px; font-weight:600;"></div>
-            </div>
-            <div style="display:flex; gap:16px;">
-                <div>
-                    <div style="font-size:11px; color:var(--text-muted); font-weight:700; text-transform:uppercase;">Break Out</div>
-                    <div id="restOvertimeBreakOut" style="font-size:14px; font-weight:700;"></div>
-                </div>
-                <div>
-                    <div style="font-size:11px; color:var(--text-muted); font-weight:700; text-transform:uppercase;">Durasi</div>
-                    <div id="restOvertimeDuration" style="font-size:14px; font-weight:700; color:#b91c1c;"></div>
-                </div>
-            </div>
-        </div>
+        <h3 style="color:#b91c1c; text-align:center;">Istirahat Lebih dari 60 Menit! <span id="restOvertimeCount" style="font-size:12px; color:var(--text-muted); font-weight:600;"></span></h3>
+        <div id="restOvertimeListBody" style="display:flex; flex-direction:column; gap:10px; margin-top:10px; overflow-y:auto; padding-right:2px;"></div>
         <div class="modal-actions" style="justify-content:center;">
             <button class="btn-primary" onclick="closeRestOvertimeModal()">Oke, Sudah Ditindak</button>
         </div>
@@ -1376,8 +1357,14 @@
     //   (document.visibilityState === "visible"). Kalau user lagi pindah ke
     //   tab lain, dia bakal nunggu di antrian & baru muncul begitu user balik
     //   ke tab ini (ke-trigger via event "visibilitychange" di bawah).
+    // restOvertimeActiveItems  = karyawan yang lagi TAMPIL di modal yang kebuka sekarang
+    //                             (bisa lebih dari 1 — modal-nya list, bukan 1 orang per popup)
+    // restOvertimePendingItems = karyawan yang KE-DETECT overtime tapi tab lagi
+    //                             gak aktif (document.hidden), nunggu di-flush begitu
+    //                             tab dibuka lagi
     let restOvertimeNotifiedKeys = new Set();
-    let restOvertimeQueue = [];
+    let restOvertimeActiveItems = [];
+    let restOvertimePendingItems = [];
     let restOvertimeModalShowing = false;
     let restOvertimeAudioUnlocked = false;
 
@@ -1405,43 +1392,87 @@
         if (diffMinutes <= 60) return;
         let key = opsId + "|" + dateStr + "|" + breakOutTime.getTime();
         if (restOvertimeNotifiedKeys.has(key)) return;
-        if (restOvertimeQueue.some(function (q) { return q.key === key; })) return;
         restOvertimeNotifiedKeys.add(key);
-        restOvertimeQueue.push({ key: key, opsId: opsId, dateStr: dateStr, breakOutTime: breakOutTime, name: name, agency: agency, dept: dept });
-        processRestOvertimeQueue();
+        let item = { key: key, opsId: opsId, dateStr: dateStr, breakOutTime: breakOutTime, name: name, agency: agency, dept: dept };
+        if (document.visibilityState !== "visible") {
+            restOvertimePendingItems.push(item); // tab lagi gak aktif, taruh dulu di antrian
+            return;
+        }
+        addRestOvertimeItem(item);
     }
 
-    function processRestOvertimeQueue() {
-        if (restOvertimeModalShowing) return;
-        if (document.visibilityState !== "visible") return;
-        if (restOvertimeQueue.length === 0) return;
-        showRestOvertimeModal(restOvertimeQueue.shift());
+    // Nambahin 1 karyawan ke modal yang lagi kebuka (atau buka modal baru
+    // kalau belum ada yang lagi nampil) — BUKAN antre satu-satu, tapi
+    // langsung nambah baris baru ke list yang sama.
+    function addRestOvertimeItem(item) {
+        restOvertimeActiveItems.push(item);
+        renderRestOvertimeList();
+        if (!restOvertimeModalShowing) {
+            restOvertimeModalShowing = true;
+            document.getElementById("restOvertimeModal").style.display = "flex";
+        }
+        playRestOvertimeSoundLoop(); // (re)start loop — juga jadi penekanan tambahan kalau ada karyawan baru nyusul
     }
 
-    function showRestOvertimeModal(item) {
-        restOvertimeModalShowing = true;
-        let diffMinutes = Math.floor((new Date() - item.breakOutTime) / 60000);
-        document.getElementById("restOvertimeName").innerText = item.name;
-        document.getElementById("restOvertimeOpsId").innerText = item.opsId;
-        document.getElementById("restOvertimeDept").innerText = item.dept + " · " + item.agency;
-        document.getElementById("restOvertimeBreakOut").innerText = formatTime(item.breakOutTime);
-        document.getElementById("restOvertimeDuration").innerText = diffMinutes + " Menit";
-        document.getElementById("restOvertimeModal").style.display = "flex";
+    function renderRestOvertimeList() {
+        const container = document.getElementById("restOvertimeListBody");
+        if (!container) return;
+        container.innerHTML = restOvertimeActiveItems.map(function (item) {
+            let diffMinutes = Math.floor((new Date() - item.breakOutTime) / 60000);
+            return '<div style="text-align:left; background:var(--table-header-bg); border-radius:8px; padding:12px 14px;">'
+                + '<div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px;">'
+                + '<div><div style="font-size:11px; color:var(--text-muted); font-weight:700; text-transform:uppercase;">Nama</div>'
+                + '<div style="font-size:15px; font-weight:700;">' + item.name + '</div></div>'
+                + '<div style="text-align:right;"><div style="font-size:11px; color:var(--text-muted); font-weight:700; text-transform:uppercase;">Durasi</div>'
+                + '<div style="font-size:14px; font-weight:700; color:#b91c1c;">' + diffMinutes + ' Menit</div></div>'
+                + '</div>'
+                + '<div style="display:flex; flex-wrap:wrap; gap:14px; margin-top:8px;">'
+                + '<div><div style="font-size:11px; color:var(--text-muted); font-weight:700; text-transform:uppercase;">OpsID</div>'
+                + '<div style="font-size:13px; font-weight:600; font-family:monospace;">' + item.opsId + '</div></div>'
+                + '<div><div style="font-size:11px; color:var(--text-muted); font-weight:700; text-transform:uppercase;">Dept / Agency</div>'
+                + '<div style="font-size:13px; font-weight:600;">' + item.dept + ' · ' + item.agency + '</div></div>'
+                + '<div><div style="font-size:11px; color:var(--text-muted); font-weight:700; text-transform:uppercase;">Break Out</div>'
+                + '<div style="font-size:13px; font-weight:700;">' + formatTime(item.breakOutTime) + '</div></div>'
+                + '</div></div>';
+        }).join("");
+        const countEl = document.getElementById("restOvertimeCount");
+        if (countEl) countEl.innerText = restOvertimeActiveItems.length > 1 ? "(" + restOvertimeActiveItems.length + " karyawan)" : "";
+    }
+
+    // Sound LOOP terus-terusan selama modal kebuka, baru berhenti begitu
+    // tombol "Oke, Sudah Ditindak" diklik (closeRestOvertimeModal).
+    function playRestOvertimeSoundLoop() {
         try {
             const audio = document.getElementById("restOvertimeAudio");
+            audio.loop = true;
             audio.currentTime = 0;
             audio.play().catch(function (e) { console.warn("Sound alert diblokir autoplay browser (klik/ketik dulu di halaman ini buat unlock):", e.message); });
+        } catch (e) {}
+    }
+
+    function stopRestOvertimeSound() {
+        try {
+            const audio = document.getElementById("restOvertimeAudio");
+            audio.loop = false;
+            audio.pause();
+            audio.currentTime = 0;
         } catch (e) {}
     }
 
     function closeRestOvertimeModal() {
         document.getElementById("restOvertimeModal").style.display = "none";
         restOvertimeModalShowing = false;
-        setTimeout(processRestOvertimeQueue, 400); // jeda dikit sebelum popup antrian berikutnya (kalau ada) nongol
+        restOvertimeActiveItems = [];
+        stopRestOvertimeSound();
     }
 
+    // Begitu tab ini aktif lagi, "flush" semua karyawan yang ke-detect
+    // overtime selagi tab tadi gak aktif — langsung dimasukin ke modal.
     document.addEventListener("visibilitychange", function () {
-        if (document.visibilityState === "visible") processRestOvertimeQueue();
+        if (document.visibilityState === "visible" && restOvertimePendingItems.length > 0) {
+            restOvertimePendingItems.forEach(function (item) { addRestOvertimeItem(item); });
+            restOvertimePendingItems = [];
+        }
     });
 
     function getWorkingDateStr(dateObj) {
@@ -1639,6 +1670,10 @@
         } else if (now.getSeconds() % 30 === 0) {
             renderAll();
         }
+        // Selagi popup overtime lagi kebuka, ikut refresh angka durasinya tiap
+        // detik (bukan cuma pas nambah karyawan baru) biar "62 Menit" dst
+        // keliatan jalan terus, gak beku di angka pas pertama muncul.
+        if (restOvertimeModalShowing) renderRestOvertimeList();
     }
 
     function parseDateTime(str) {
