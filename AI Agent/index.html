@@ -145,12 +145,29 @@
     padding: 0 6px 0 12px; background: #131c33; border-bottom: 1px solid #1e293b;
     color: #f1f5f9; font-weight: 700; font-size: 12.5px;
   }
-  .odyssey-popup-head-actions { display: flex; gap: 2px; }
+  /* "The" tetep pakai warna default header (putih pucat) — kalau dipaksa
+     item/hitam beneran malah ketelen sama background gelap #131c33 ini,
+     jadi gak kebaca. "Odyssey" dikasih warna oranye aksen (samain kayak
+     tab aktif di topnav) biar dua kata itu kebeda jelas. */
+  .odyssey-popup-title .odyssey-accent { color: #e67e22; }
+  .odyssey-popup-head-actions { display: flex; align-items: center; gap: 6px; }
   .odyssey-popup-head-actions button {
     background: transparent; border: none; color: #94a3b8; font-size: 14px; cursor: pointer;
     width: 26px; height: 26px; border-radius: 6px;
   }
   .odyssey-popup-head-actions button:hover { background: rgba(255,255,255,.08); color: #f1f5f9; }
+  /* Tombol "Refresh Data" — sebelumnya nempel di dalam iframe (topbar-nya
+     sendiri, di atas chat-log), sekarang dipindah naik ke title bar popup ini
+     biar sebaris sama "The Odyssey", jadi area di dalam iframe di bawahnya
+     bisa full buat percakapan doang. Klik-nya nge-postMessage ke dalam
+     iframe (lihat script bawah) buat manggil ulang loadData() di sana. */
+  .odyssey-refresh-btn {
+    width: auto !important; height: auto !important;
+    padding: 5px 10px; border: 1px solid #1e293b !important; border-radius: 6px;
+    font-family: 'Inter', sans-serif; font-weight: 600; font-size: 10.5px !important;
+    white-space: nowrap;
+  }
+  .odyssey-refresh-btn:hover { border-color: #475569 !important; }
   /* Iframe Odyssey TINGGAL DI SINI PERMANEN (satu-satunya wadahnya, dari awal
      load sampai seterusnya) — TIDAK PERNAH dipindah/appendChild ke wadah lain.
      Mindahin sebuah iframe yang udah ada isinya ke parent lain lewat DOM
@@ -168,12 +185,13 @@
      jalan begitu kursor nyentuh area iframe. */
   .odyssey-popup.resizing .odyssey-popup-body iframe { pointer-events: none; }
 
-  /* ===== Mode "tab penuh" (dipakai pas user klik tab "AI Agent Odyssey" di
-     topnav, atau tombol "buka tampilan penuh" di popup) =====
+  /* ===== Mode "tab penuh" (cuma kepake sekarang kalau tombol ⛶ "buka
+     tampilan penuh" di popup diklik — tab "AI Agent Odyssey" sendiri udah
+     disembunyiin dari topnav) =====
      Wadah yang SAMA PERSIS dipakai di mode popup, cuma di-restyle jadi
-     ngisi seluruh area konten (persis posisi ".frames") dan chrome popup-nya
-     (header + resize handle) disembunyiin — hasilnya keliatan identik kayak
-     tab-tab lain, padahal iframe di dalamnya gak pernah pindah tempat.
+     ngisi seluruh area konten (persis posisi ".frames"). Title bar (judul +
+     tombol Refresh Data/⛶/✕) TETEP keliatan di mode ini — cuma resize handle
+     doang yang disembunyiin (gak relevan lagi wong ukurannya udah full).
      width/height dikasih !important buat nimpa inline style w/h peninggalan
      drag-resize popup (kalau user sempet resize popup-nya sebelum pindah ke
      tab penuh). */
@@ -183,7 +201,6 @@
     min-width: 0; min-height: 0; max-width: none; max-height: none;
     border: none; border-radius: 0; box-shadow: none;
   }
-  .odyssey-popup.tab-mode .odyssey-popup-head,
   .odyssey-popup.tab-mode .odyssey-resize-handle { display: none; }
 </style>
 </head>
@@ -226,8 +243,9 @@
 </div>
 <div class="odyssey-popup" id="odysseyPopup">
   <div class="odyssey-popup-head">
-    <span>The Odyssey</span>
+    <span class="odyssey-popup-title">The <span class="odyssey-accent">Odyssey</span></span>
     <div class="odyssey-popup-head-actions">
+      <button type="button" id="odysseyRefreshBtn" class="odyssey-refresh-btn" title="Refresh data trip Inbound">Refresh Data</button>
       <button type="button" id="odysseyExpandBtn" title="Buka tampilan penuh">⛶</button>
       <button type="button" id="odysseyPopupCloseBtn" title="Tutup">✕</button>
     </div>
@@ -415,6 +433,18 @@
     // switch wadah Odyssey ke mode "tab" & pindahin tab aktif di topnav ke
     // "odyssey").
     showTab("odyssey");
+  });
+  document.getElementById("odysseyRefreshBtn").addEventListener("click", function () {
+    // Tombol "Refresh Data" fisiknya sekarang di title bar popup ini (luar
+    // iframe), padahal logic buat narik ulang data trip-nya (loadData())
+    // masih hidup di dalam report-agent.html. Jadi klik di sini cuma
+    // nge-postMessage ke dalam iframe — report-agent.html yang dengerin
+    // pesan ini (lihat listener "pkydc"/"odysseyRefresh" di file itu) dan
+    // yang beneran manggil loadData()-nya.
+    var iframe = document.getElementById(ODYSSEY_TAB.iframe);
+    if (iframe && iframe.contentWindow) {
+      iframe.contentWindow.postMessage({ source: "pkydc", type: "odysseyRefresh" }, "*");
+    }
   });
 
   // ===== FAB bisa di-drag (geser posisinya), tapi klik biasa (gak digeser)
