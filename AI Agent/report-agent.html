@@ -176,13 +176,20 @@
 
   <!-- Header "The Odyssey" DIHAPUS dari sini — judulnya sekarang cuma
        ditampilin sekali di title bar popup (index.html), biar area di bawah
-       ini (topbar Refresh Data + chat-panel) bisa FULL kepake buat
-       percakapan, gak keulang 2x. #statusLine ("mode: mock data") masih
-       dipertahanin di script bawah lewat elemen tersembunyi biar kode JS
-       yang nulis ke situ (kalau ada) gak error karena elemen ilang. -->
+       ini (chat-panel) bisa FULL kepake buat percakapan, gak keulang 2x.
+       #statusLine ("mode: mock data") masih dipertahanin di script bawah
+       lewat elemen tersembunyi biar kode JS yang nulis ke situ gak error
+       karena elemen ilang. -->
   <div class="sub" id="statusLine" style="display:none;">mode: mock data</div>
 
-  <div class="topbar">
+  <!-- Topbar (stat "N trip tercatat" + tombol "Refresh Data") juga DISEMBUNYIIN
+       dari sini — tombol "Refresh Data"-nya udah dipindah ke title bar popup
+       di index.html (biar sebaris sama "The Odyssey"), dan klik di sana
+       nge-postMessage ke sini (lihat listener "odysseyRefresh" di script
+       bawah) buat manggil loadData() yang sama persis. Elemen-elemen di
+       dalam sini dibiarin tetep ada (bukan dihapus) biar kode JS yang masih
+       nulis ke situ (quickStat, refreshBtn) gak error. -->
+  <div class="topbar" style="display:none;">
     <span class="stat" id="quickStat"><b>0</b> trip tercatat</span>
     <div class="spacer"></div>
     <button class="icon-btn" id="refreshBtn">Refresh Data</button>
@@ -815,6 +822,16 @@ Contoh buat jawaban singkat 1 baris, "replyLines" tetap array isi 1 item, misal:
 }
 
 document.getElementById("refreshBtn").addEventListener("click", loadData);
+
+// Tombol "Refresh Data" aslinya (di atas) udah disembunyiin — yang beneran
+// keliatan buat user itu tombol kembarannya di title bar popup, di luar
+// iframe ini (index.html). Klik di sana ngirim postMessage ke sini; begitu
+// ketrima, panggil loadData() yang sama kayak refreshBtn dulu manggilnya.
+window.addEventListener("message", function (e) {
+  var data = e.data;
+  if (!data || data.source !== "pkydc") return;
+  if (data.type === "odysseyRefresh") loadData();
+});
 
 // ===== Attach gambar via paste (Ctrl+V) =====
 let pendingImageDataUrl = null;
