@@ -666,22 +666,32 @@ salah satu dari 4 kategori di atas.
 Tanggal report WAJIB pakai tanggal device/lokal user hari ini yaitu ${todayStr} (format DD/MM/YYYY) —
 JANGAN ambil atau nebak tanggal dari isi gambar sama sekali buat report ini.
 
-TEMPLATE WAJIB (ikuti PERSIS termasuk spasi & urutan, teks polos TANPA tanda bintang/simbol markdown
-apa pun, tiap baris di bawah = 1 item terpisah di array "replyLines", baris kosong = item string kosong
-""):
+TEMPLATE WAJIB — PERHATIAN, ini contoh JADI (bukan instruksi/placeholder yang perlu diterjemahkan),
+angka di dalamnya cuma CONTOH yang WAJIB kamu ganti sesuai hasil hitungan kamu, TAPI tanda kurung buka
+"(" dan tutup ")" di sekeliling angka itu adalah KARAKTER LITERAL yang WAJIB tetap ada persis di hasil
+akhir — JANGAN PERNAH dihapus/dihilangkan walau isi angkanya beda dari contoh. Baris pertama ("PalangkaRaya
+DC" + spasi + tanggal) itu SATU baris utuh / SATU item array, JANGAN dipecah jadi 2 baris terpisah. Teks
+polos TANPA tanda bintang/simbol markdown apa pun, tiap baris di bawah = 1 item terpisah di array
+"replyLines", baris kosong = item string kosong "":
 
-PalangkaRaya DC ${todayStr}
+PalangkaRaya DC 06/09/2026
 ECO
-(isi jumlah baris ECO berstatus Antri)Antri
-(isi jumlah baris ECO berstatus In Progress)In Progress
-(isi jumlah baris ECO berstatus Done)Done
-(isi jumlah baris ECO berstatus Incoming)Incoming
+(0)Antri
+(1)In Progress
+(12)Done
+(5)Incoming
 <baris kosong>
 STD
-(isi jumlah baris STD berstatus Antri)Antri
-(isi jumlah baris STD berstatus In Progress)In Progress
-(isi jumlah baris STD berstatus Done)Done
-(isi jumlah baris STD berstatus Incoming)Incoming
+(0)Antri
+(0)In Progress
+(0)Done
+(0)Incoming
+
+Ingat: "PalangkaRaya DC 06/09/2026" di atas cuma contoh gabungan nama DC + tanggal dalam SATU baris —
+tanggal yang beneran kamu pakai adalah ${todayStr} (bukan "06/09/2026" mentah-mentah kalau beda dari
+tanggal hari ini), dan angka (0), (1), (12), (5), dst itu cuma contoh — ganti sesuai hasil hitungan kamu
+dari gambar, tapi kurungnya tetap dipertahankan persis kayak contoh: "(N)Antri", "(N)In Progress",
+"(N)Done", "(N)Incoming".
 
 ${jsonFormatRule}`;
   } else if (!isDataQuery){
