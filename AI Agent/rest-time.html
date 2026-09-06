@@ -1379,6 +1379,26 @@
     let restOvertimeNotifiedKeys = new Set();
     let restOvertimeQueue = [];
     let restOvertimeModalShowing = false;
+    let restOvertimeAudioUnlocked = false;
+
+    // Browser (Chrome dkk) nge-block audio.play() lewat JS kalau BELUM ada
+    // interaksi user (klik/ketik) di halaman ini duluan — makanya kadang popup
+    // muncul otomatis (dari background check) tapi suaranya gak keluar.
+    // Trik: begitu user klik/keydown APAPUN di halaman, diam-diam "unlock"
+    // elemen audio-nya sekali (play sekejap lalu langsung pause+reset), abis
+    // itu audio.play() programatik bebas dipanggil kapan aja tanpa diblokir.
+    function unlockRestOvertimeAudio() {
+        if (restOvertimeAudioUnlocked) return;
+        const audio = document.getElementById("restOvertimeAudio");
+        if (!audio) return;
+        audio.play().then(function () {
+            audio.pause();
+            audio.currentTime = 0;
+            restOvertimeAudioUnlocked = true;
+        }).catch(function () { /* belum ke-unlock, coba lagi di interaksi berikutnya */ });
+    }
+    document.addEventListener("click", unlockRestOvertimeAudio);
+    document.addEventListener("keydown", unlockRestOvertimeAudio);
 
     function checkRestOvertimeAlert(opsId, dateStr, breakOutTime, name, agency, dept) {
         let diffMinutes = Math.floor((new Date() - breakOutTime) / 60000);
@@ -1410,7 +1430,7 @@
         try {
             const audio = document.getElementById("restOvertimeAudio");
             audio.currentTime = 0;
-            audio.play().catch(function (e) { console.warn("Sound alert diblokir autoplay browser:", e.message); });
+            audio.play().catch(function (e) { console.warn("Sound alert diblokir autoplay browser (klik/ketik dulu di halaman ini buat unlock):", e.message); });
         } catch (e) {}
     }
 
