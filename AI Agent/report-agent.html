@@ -458,6 +458,16 @@ function renderAttachCard(units){
 // Render markdown (bold/italic/list/link/code fence) jadi HTML, lalu jalanin
 // syntax highlighting di tiap blok <pre><code>. Dipanggil buat bubble agent
 // SETELAH typewriter kelar ngetik (biar gak parsing HTML di tengah animasi).
+// Line tunggal (bukan baris kosong) dari "replyLines" harus tetep dianggap
+// ganti baris pas di-render markdown — default marked.js NGE-GABUNG newline
+// tunggal jadi satu paragraf (butuh baris kosong buat paragraf baru), yang
+// bikin baris-baris kayak "(0)Antri" / "(1)In Progress" numpuk jadi satu
+// baris panjang. "breaks:true" nyamain perilakunya sama kayak sebelumnya
+// (white-space:pre-wrap versi plain text) tapi tetep dapet markdown+highlight.
+if (window.marked && marked.setOptions){
+  marked.setOptions({ breaks: true, gfm: true });
+}
+
 function renderMarkdownInto(bubbleEl, rawText){
   try{
     bubbleEl.innerHTML = marked.parse(rawText || "");
