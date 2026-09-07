@@ -66,7 +66,12 @@ exports.handler = async function (event) {
     contents: contents,
     generationConfig: {
       maxOutputTokens: max_tokens || 1000,
-      thinkingConfig: { thinkingLevel: thinkingLevel }
+      thinkingConfig: { thinkingLevel: thinkingLevel },
+      // Maksa Gemini balikin JSON yang beneran valid (bukan cuma nurut
+      // instruksi teks di system prompt yang sifatnya "permintaan" doang).
+      // Ini yang bikin balesan bisa berantakan/gagal JSON.parse sebelumnya,
+      // apalagi di model Lite yang kurang nurut instruksi format.
+      responseMimeType: "application/json"
     }
   };
   if (system) {
@@ -87,7 +92,7 @@ exports.handler = async function (event) {
       lastResult = { status: geminiRes.status, data: data };
 
       if (!isRateLimitError(geminiRes.status, data)){
-        data._modelUsed = model;
+        data.modelUsed = model;
         return {
           statusCode: geminiRes.status,
           headers: { "Content-Type": "application/json" },
