@@ -1385,6 +1385,13 @@
     let restOvertimeAudioUnlocked = false;
     let restTimeModuleWasVisible = true;
 
+    // Sinyal EKSPLISIT dari app shell (lewat postMessage, liat listener di
+    // script "APP-SHELL BRIDGE" paling bawah) soal modul Rest Time ini lagi
+    // ditampilin apa enggak. null = app shell belum pernah ngirim sinyal ini
+    // sama sekali (berarti app shell versi lama, belum di-update buat kirim
+    // sinyal ini) -> fallback ke deteksi berbasis CSS di bawah.
+    let shellReportedVisible = null;
+
     // Browser (Chrome dkk) nge-block audio.play() lewat JS kalau BELUM ada
     // interaksi user (klik/ketik) di halaman ini duluan — makanya kadang popup
     // muncul otomatis (dari background check) tapi suaranya gak keluar.
@@ -1409,22 +1416,28 @@
     // user pindah ke modul lain (Inventory Control, dst) — jadi script-nya
     // TETAP JALAN di background.
     //
-    // FIX: dulu deteksinya cuma ngecek document.documentElement.clientWidth/
-    // clientHeight (ukuran dokumen iframe ini SENDIRI). Itu gak selalu ke-0
-    // pas app shell nyembunyiin iframe ini (mis. app shell-nya pakai
-    // visibility:hidden / opacity:0 / posisi ditumpuk di belakang panel lain,
-    // BUKAN display:none) — jadi kebaca "masih visible" padahal user udah
-    // pindah tab, dan suara alert-nya kebawa bocor ke modul lain (mis. pas
-    // buka Inventory Control, alert Rest Time masih kedengeran).
+    // FIX (percobaan #1, TERNYATA BELUM CUKUP): sebelumnya cuma ngecek
+    // document.documentElement.clientWidth/clientHeight (ukuran dokumen
+    // iframe ini SENDIRI). Terus dicoba dibenerin pakai window.frameElement
+    // (ngecek langsung style & ukuran elemen <iframe>-nya di dokumen
+    // PARENT). Ternyata SUARANYA MASIH BOCOR — kesimpulannya app shell-nya
+    // kemungkinan besar nyimpen SEMUA iframe modul tetep "hidup" & "visible"
+    // sekaligus (display bukan none, ukuran bukan 0x0), terus modul yang
+    // aktif doang yang ditumpuk PALING ATAS (z-index) di depan iframe modul
+    // lain. Dari SISI DALAM iframe ini, itu gak bisa dibedain dari CSS/DOM
+    // biasa — iframe ini "keliatan" secara teknis walau aslinya ketutup
+    // iframe lain di atasnya.
     //
-    // Sekarang: kalau same-origin sama app shell, dicek langsung dari elemen
-    // <iframe> ini SENDIRI di dokumen PARENT (window.frameElement) — itu
-    // sumber paling akurat soal "beneran keliatan di layar apa enggak",
-    // nyakup display:none, visibility:hidden, opacity:0, maupun ukuran 0x0.
-    // Kalau beda origin (frameElement gak bisa diakses), fallback ke cara
-    // lama (ukuran dokumen sendiri).
+    // FIX beneran: minta app shell KASIH TAU LANGSUNG lewat postMessage pas
+    // dia ganti tab aktif (liat listener "activeTabChanged" di script
+    // "APP-SHELL BRIDGE" paling bawah, isinya set variabel
+    // shellReportedVisible). Itu satu-satunya sumber yang PASTI akurat.
+    // Kalau app shell belum di-update buat ngirim sinyal itu (shellReportedVisible
+    // masih null), baru fallback ke pengecekan CSS/ukuran iframe di bawah
+    // (yang sayangnya gak nangkep kasus "ketutup iframe lain" di atas).
     function isRestTimeModuleVisible() {
         if (document.visibilityState !== "visible") return false;
+        if (shellReportedVisible !== null) return shellReportedVisible;
         try {
             var fe = window.frameElement;
             if (fe && window.top && window.top.getComputedStyle) {
@@ -2924,6 +2937,23 @@
     var data = e.data;
     if (!data || data.source !== "pkydc") return;
     if (data.type === "collapseSidebarGroups") collapseAllNavGroups();
+
+    // Sinyal eksplisit dari app shell soal tab/modul mana yang lagi aktif —
+    // dipakai buat isRestTimeModuleVisible() (liat definisinya di script
+    // sebelumnya) biar suara alert Istirahat >60 Menit gak bocor ke modul
+    // lain. Dua bentuk pesan yang didukung, app shell tinggal pilih salah satu:
+    //   1) { source:"pkydc", type:"activeTabChanged", tab:"rest-time" }
+    //      -> otomatis dicocokin ke window.__PAGE_TAB ("rest-time")
+    //   2) { source:"pkydc", type:"moduleVisibility", visible:true/false }
+    //      -> app shell yang nentuin sendiri true/false-nya
+    if (data.type === "activeTabChanged" && typeof data.tab === "string") {
+      shellReportedVisible = (data.tab === window.__PAGE_TAB);
+      handleRestTimeModuleVisibilityChange();
+    }
+    if (data.type === "moduleVisibility" && typeof data.visible === "boolean") {
+      shellReportedVisible = data.visible;
+      handleRestTimeModuleVisibilityChange();
+    }
   });
 })();
 </script>
