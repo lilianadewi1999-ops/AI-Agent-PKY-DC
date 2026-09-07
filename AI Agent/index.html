@@ -395,6 +395,19 @@
     });
     document.getElementById(ODYSSEY_TAB.btn).classList.toggle("active", tab === "odyssey");
 
+    // Siaran EKSPLISIT ke SEMUA iframe modul (bukan cuma yang lagi dituju) soal
+    // tab mana yang sekarang aktif — dipakai rest-time.html (dan modul lain yang
+    // mau, kalau nanti butuh) buat mastiin alert/suara yang jalan di background
+    // (mis. "Istirahat Lebih dari 60 Menit") KEBUNGKAM begitu modulnya bukan lagi
+    // yang aktif. Iframe yang belum ada src-nya (belum diizinin akses / belum
+    // di-lazy-load) dilewatin, gak ada contentWindow-nya.
+    Object.keys(TABS).forEach(function (key) {
+      var ifr = document.getElementById(TABS[key].iframe);
+      if (ifr && ifr.src && ifr.contentWindow) {
+        ifr.contentWindow.postMessage({ source: "pkydc", type: "activeTabChanged", tab: tab }, "*");
+      }
+    });
+
     // Container Odyssey (popup) di-set ke mode "tab penuh" kalau tab yang
     // dituju emang "odyssey", atau disembunyiin total kalau enggak — TANPA
     // pernah mindah node iframe-nya (lihat setOdysseyMode).
