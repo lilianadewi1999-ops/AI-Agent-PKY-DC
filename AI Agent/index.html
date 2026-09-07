@@ -139,7 +139,7 @@
   /* ===== Panel Popup Chat — muncul begitu FAB diklik (bukan di-drag) ===== */
   .odyssey-popup {
     position: fixed; right: 20px; bottom: 88px; z-index: 9998;
-    width: 380px; height: 600px;
+    width: 480px; height: 640px;
     min-width: 300px; min-height: 340px;
     max-width: calc(100vw - 24px); max-height: calc(100vh - 112px);
     background: #0b1329; border: 1px solid #1e293b; border-radius: 14px;
@@ -501,10 +501,10 @@
     // Popup lagi disembunyiin (display:none) pas fungsi ini kepanggil, jadi
     // gak bisa ambil ukuran dari getBoundingClientRect (bakal kebaca 0).
     // Ambil dari inline style peninggalan resize manual kalau ada, kalau
-    // enggak pakai default sesuai CSS (380x600), lalu clamp biar gak lebih
+    // enggak pakai default sesuai CSS (480x640), lalu clamp biar gak lebih
     // gede dari viewport (niru batas min/max-width/height di CSS).
-    var popW = Math.min(parseFloat(popup.style.width) || 380, window.innerWidth - 2 * MARGIN);
-    var popH = Math.min(parseFloat(popup.style.height) || 600, window.innerHeight - 2 * MARGIN);
+    var popW = Math.min(parseFloat(popup.style.width) || 480, window.innerWidth - 2 * MARGIN);
+    var popH = Math.min(parseFloat(popup.style.height) || 640, window.innerHeight - 2 * MARGIN);
 
     var left = fabRect.right - popW;
     var top = fabRect.top - GAP - popH;
