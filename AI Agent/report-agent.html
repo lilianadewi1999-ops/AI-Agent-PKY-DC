@@ -86,7 +86,9 @@
   #chatLog::-webkit-scrollbar-thumb{background:var(--line); border-radius:10px;}
   #chatLog::-webkit-scrollbar-thumb:hover{background:var(--muted);}
 
-  .msg{max-width:min(78%, 720px); display:flex; flex-direction:column; gap:6px;
+  /* --chat-msg-max-width & --chat-font-size diatur dari JS (panel Setting),
+     nilai di sini cuma fallback default kalau user belum pernah ngatur apa-apa. */
+  .msg{max-width:var(--chat-msg-max-width, min(78%, 720px)); display:flex; flex-direction:column; gap:6px;
     animation:msgIn .28s cubic-bezier(.34,1.2,.64,1) both;}
   @keyframes msgIn{
     0%{opacity:0; transform:translateY(10px) scale(.98);}
@@ -103,7 +105,7 @@
   .avatar img{width:100%; height:100%; object-fit:cover; display:block;}
   .avatar.avatar-agent{background:linear-gradient(135deg,var(--amber),var(--red)); color:#241704;}
   .avatar.avatar-user{background:var(--panel-2); border:1px solid var(--line); color:var(--cyan);}
-  .bubble{padding:10px 14px; border-radius:14px; font-size:14px; line-height:1.5; white-space:pre-wrap;}
+  .bubble{padding:10px 14px; border-radius:14px; font-size:var(--chat-font-size, 14px); line-height:1.5; white-space:pre-wrap;}
   .msg.user .bubble{background:var(--amber); color:#241704; border-bottom-right-radius:4px;}
   .msg.agent .bubble{background:var(--panel-2); border:1px solid var(--line); border-bottom-left-radius:4px; white-space:normal;}
   .msg .who{font-size:10px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); display:flex; align-items:center; gap:6px;}
@@ -244,6 +246,70 @@
   details.note-details summary{cursor:pointer; color:var(--cyan);}
   details.note-details .inner{padding:10px 2px 2px; line-height:1.6;}
   details.note-details code{background:var(--panel-2); padding:1px 5px; border-radius:4px; font-family:'IBM Plex Mono',monospace;}
+
+  /* ===== Row utama: sidebar riwayat sesi (kiri) + chat-panel (kanan) =====
+     Sengaja dipisah dari .wrap (yang tetep flex-column) biar chat-panel
+     LAMA gak keganggu struktur/CSS-nya — cuma dibungkus sejajar sama
+     sidebar baru. Sidebar defaultnya ketutup (class "hidden") biar area
+     chat tetep full kepake kayak sebelumnya, user tinggal klik tombol
+     "Riwayat" di header buat buka/tutup. */
+  .main-row{flex:1; display:flex; gap:12px; min-height:0;}
+  .sessions-sidebar{
+    width:220px; flex:none; display:flex; flex-direction:column; gap:8px;
+    background:var(--panel); border:1px solid var(--line); border-radius:var(--radius);
+    padding:10px; overflow:hidden;
+  }
+  .sessions-sidebar.hidden{display:none;}
+  .sessions-sidebar-header{
+    display:flex; align-items:center; justify-content:space-between;
+    font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.05em;
+  }
+  .sessions-sidebar-header button{
+    background:transparent; border:none; color:var(--muted); cursor:pointer; font-size:13px; padding:2px;
+  }
+  .sessions-sidebar-header button:hover{color:var(--red);}
+  .new-session-btn{
+    background:var(--panel-2); border:1px solid var(--line); color:var(--text); border-radius:8px;
+    padding:8px 10px; font-size:12px; cursor:pointer; font-family:inherit; text-align:left;
+  }
+  .new-session-btn:hover{border-color:var(--amber); color:var(--amber);}
+  .sessions-list{
+    flex:1; overflow-y:auto; display:flex; flex-direction:column; gap:4px;
+    scrollbar-width:thin; scrollbar-color:var(--line) transparent;
+  }
+  .sessions-list::-webkit-scrollbar{width:6px;}
+  .sessions-list::-webkit-scrollbar-thumb{background:var(--line); border-radius:10px;}
+  .session-item{
+    display:flex; flex-direction:column; gap:2px; padding:8px 9px; border-radius:8px; cursor:pointer;
+    border:1px solid transparent; background:transparent; text-align:left; font-family:inherit; width:100%;
+  }
+  .session-item:hover{background:var(--panel-2);}
+  .session-item.active{background:var(--panel-2); border-color:var(--cyan);}
+  .session-item .session-title{
+    font-size:12px; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  .session-item .session-meta{font-size:10px; color:var(--muted);}
+  .sessions-empty{font-size:11px; color:var(--muted); padding:8px 4px; line-height:1.5;}
+
+  /* ===== Tombol-tombol aksi tambahan di chat-header (Riwayat/Sound/Setting) ===== */
+  .header-actions{display:flex; align-items:center; gap:6px; position:relative;}
+
+  /* ===== Popover Setting (ukuran font & lebar chat) ===== */
+  .settings-popover{
+    position:absolute; top:36px; right:0; background:var(--panel-2); border:1px solid var(--line);
+    border-radius:10px; padding:12px; width:190px; z-index:50; display:none; flex-direction:column; gap:10px;
+    box-shadow:0 8px 24px rgba(0,0,0,.45);
+  }
+  .settings-popover.show{display:flex;}
+  .settings-popover .field label{
+    font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:.04em;
+    display:block; margin-bottom:4px;
+  }
+  .settings-popover select{
+    width:100%; background:var(--panel); border:1px solid var(--line); color:var(--text);
+    border-radius:6px; padding:6px 8px; font-size:12px; font-family:inherit; cursor:pointer;
+  }
+  .settings-popover select:focus{outline:none; border-color:var(--amber);}
 </style>
 </head>
 <body>
@@ -270,13 +336,51 @@
     <button class="icon-btn" id="refreshBtn">Refresh Data</button>
   </div>
 
-  <div class="chat-panel">
-    <div class="chat-header">
-      <div class="avatar avatar-agent" id="chatHeaderAvatar"></div>
-      <div class="chat-header-title"><span class="brand-the">The</span> <span class="brand-odyssey">Odyssey</span><div class="chat-header-sub">AI Agent — Palangka Raya DC</div></div>
-      <button class="new-chat-btn" id="newChatBtn" type="button" title="Mulai percakapan baru">🗘 New Chat</button>
+  <div class="main-row">
+    <!-- Sidebar riwayat sesi chat — default ketutup (lihat class "hidden"), dibuka
+         lewat tombol 🗂 di header biar area chat gak keambil ruang kalau gak dipake.
+         Isinya di-fetch dari Firebase (per-user, lihat ODYSSEY_CHAT_ROOT di script). -->
+    <div class="sessions-sidebar hidden" id="sessionsSidebar">
+      <div class="sessions-sidebar-header">
+        <span>Riwayat Chat</span>
+        <button type="button" id="closeSidebarBtn" title="Tutup riwayat">✕</button>
+      </div>
+      <button class="new-session-btn" id="newSessionBtn" type="button">+ Chat Baru</button>
+      <div id="sessionsList" class="sessions-list">
+        <div class="sessions-empty">Memuat riwayat…</div>
+      </div>
     </div>
-    <div id="chatLog"></div>
+
+    <div class="chat-panel">
+      <div class="chat-header">
+        <div class="avatar avatar-agent" id="chatHeaderAvatar"></div>
+        <div class="chat-header-title"><span class="brand-the">The</span> <span class="brand-odyssey">Odyssey</span><div class="chat-header-sub">AI Agent — Palangka Raya DC</div></div>
+        <div class="header-actions">
+          <button class="icon-btn" id="toggleSidebarBtn" type="button" title="Riwayat chat">🗂</button>
+          <button class="icon-btn" id="soundToggleBtn" type="button" title="Sound efek">🔊</button>
+          <button class="icon-btn" id="settingsBtn" type="button" title="Pengaturan tampilan">⚙</button>
+          <div class="settings-popover" id="settingsPopover">
+            <div class="field">
+              <label for="fontSizeSelect">Ukuran Font</label>
+              <select id="fontSizeSelect">
+                <option value="small">Kecil</option>
+                <option value="normal" selected>Sedang</option>
+                <option value="large">Besar</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="chatWidthSelect">Lebar Chat</label>
+              <select id="chatWidthSelect">
+                <option value="narrow">Sempit</option>
+                <option value="normal" selected>Normal</option>
+                <option value="wide">Lebar</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        <button class="new-chat-btn" id="newChatBtn" type="button" title="Mulai percakapan baru">🗘 New Chat</button>
+      </div>
+      <div id="chatLog"></div>
     <div class="chat-input-row">
       <div class="model-select-row">
         <select id="modelSelect" class="model-select" title="Pilih model AI">
@@ -298,6 +402,7 @@
         <button id="sendBtn">Kirim</button>
       </div>
     </div>
+    </div>
   </div>
 
 </div>
@@ -314,9 +419,39 @@
 const FB_ROOT = "prDcInboundTracking";
 const LH_PATH = FB_ROOT + "/lhTracking";
 
+// ===== Path Firebase modul Rest Time & Asset Usage (rest-time.html) =====
+// Root beda sendiri (BUKAN turunan FB_ROOT trip Inbound di atas) — persis
+// sama seperti yang dipakai rest-time.html biar Odyssey baca sumber data
+// yang sama persis dengan yang keliatan di dashboard modul itu.
+const MON_ROOT = "prDcMonitoring";
+const MON_LOGS_PATH = MON_ROOT + "/logs";           // log Rest Time (Check In/Break Out/Break In/Selesai)
+const MON_ASSET_PATH = MON_ROOT + "/assetLogs";     // log Asset Usage (Pinjam PDA/Kembali PDA)
+const MON_MASTER_PATH = MON_ROOT + "/master";       // data karyawan: {opsId: {name, dept, agency}}
+const MON_STATION_PATH = MON_ROOT + "/pdaStationMap"; // mapping SN PDA -> station
+const MON_WINDOW_DAYS = 3; // disamain kayak LOGS_WINDOW_DAYS di rest-time.html, biar gak dump histori kelamaan
+
 let currentTrips = [];
+let currentRestLogs = [];   // array log Rest Time, MON_WINDOW_DAYS hari terakhir
+let currentAssetLogs = [];  // array log Asset Usage, MON_WINDOW_DAYS hari terakhir
+let monMasterKaryawan = {}; // {opsId: {name, dept, agency}}
+let monPdaStationMap = {};  // {serialNumber: "Inbound"|"Sec Sort"|...}
 let chatHistory = []; // {role:'user'|'assistant', content:'...'}
 let firebaseReady = false;
+
+// ===== Path Firebase buat histori chat per-user (fitur "simpen histori
+// chat ke Firebase, bisa dibuka lagi lewat sidebar") — Root SENDIRI, beda
+// dari FB_ROOT (data trip) & MON_ROOT (Rest Time/Asset), biar histori
+// obrolan gak numpuk campur sama data operasional. Struktur:
+// prDcOdysseyChats/{uid}/{sessionId} = {title, updatedAt, messages:[...]}. */
+const ODYSSEY_CHAT_ROOT = "prDcOdysseyChats";
+let currentSessionId = null; // null = sesi ini belum pernah kesimpen (chat baru)
+let saveSessionTimer = null; // debounce biar gak nulis ke Firebase tiap ketikan/balesan
+
+// ===== Sound effect halus pas kirim/terima pesan (Web Audio API, gak butuh
+// file audio eksternal) — bisa dimute lewat tombol 🔊 di header, state-nya
+// disimpen di localStorage biar kepake terus tiap buka halaman ini lagi. */
+let odysseyAudioCtx = null;
+let soundEnabled = localStorage.getItem("odysseySoundEnabled") !== "0"; // default ON
 
 // ===== Mock data (dipakai kalau live toggle mati / firebase belum siap) =====
 function generateMockData(dateStr){
@@ -350,6 +485,915 @@ function fetchLiveTrips(){
       })
       .catch(reject);
   });
+}
+
+// ===== Firebase live fetch — Rest Time & Asset Usage (prDcMonitoring) =====
+// Ambil 4 node sekaligus (logs, assetLogs, master, pdaStationMap) paralel.
+// "logs" & "assetLogs" dibatasin MON_WINDOW_DAYS hari terakhir (sama kayak
+// window yang ditampilin rest-time.html sendiri) biar dump JSON ke AI gak
+// membengkak nyeret histori lama yang gak relevan buat pertanyaan real-time.
+function getMonWindowStartDate(){
+  const d = new Date();
+  d.setDate(d.getDate() - MON_WINDOW_DAYS);
+  return formatDateYYYYMMDDLocal(d);
+}
+function fetchRestAssetData(){
+  return new Promise((resolve, reject) => {
+    if (!window.firebase || !firebase.apps || !firebase.apps.length){
+      reject(new Error("Firebase belum ke-init (auth-guard.js gak ketemu / belum login)"));
+      return;
+    }
+    if (!firebase.auth().currentUser){
+      reject(new Error("Belum login — buka file ini lewat app shell / login dulu"));
+      return;
+    }
+    const db = firebase.database();
+    const startDate = getMonWindowStartDate();
+    Promise.all([
+      db.ref(MON_LOGS_PATH).orderByChild("workingDate").startAt(startDate).once("value"),
+      db.ref(MON_ASSET_PATH).orderByChild("workingDate").startAt(startDate).once("value"),
+      db.ref(MON_MASTER_PATH).once("value"),
+      db.ref(MON_STATION_PATH).once("value")
+    ]).then(([logsSnap, assetSnap, masterSnap, stationSnap]) => {
+      const logsVal = logsSnap.val() || {};
+      const assetVal = assetSnap.val() || {};
+      resolve({
+        logs: Object.keys(logsVal).map(k => logsVal[k]),
+        assetLogs: Object.keys(assetVal).map(k => assetVal[k]),
+        master: masterSnap.val() || {},
+        stationMap: stationSnap.val() || {}
+      });
+    }).catch(reject);
+  });
+}
+
+
+// ===== Path Firebase modul OUTBOUND (outbound.html) — Aging & Packer Backlog + Occupancy & Shift.
+// Root beda sendiri, SAMA PERSIS yang dipakai outbound.html, biar Odyssey baca sumber data yang
+// sama persis dengan yang keliatan di dashboard Outbound. =====
+const FB_OUTBOUND_ROOT = "prDcOutboundMonitoring";
+let currentOutboundRaw = [];    // array parcel Outbound (hasil decompress data import terakhir)
+let currentOutboundMeta = null; // {fileName, importedAt, importedBy} import terakhir modul Outbound
+
+// ===== Modul PERFORMANCE BAGGER (monitoring produktivitas packer/bagger harian, sumber import PDVT) =====
+const FB_PB_ROOT = "prDcPerformanceBagger";
+let currentPbDailyRecords = {}; // {tanggal(YYYY-MM-DD): {opsId: {name, agency, packed, statusInfo, importedAt, importedBy}}} bulan berjalan, live Firebase
+let currentPbImportLogs = [];   // riwayat import PDVT terakhir (max 20, sesuai yang ditampilin dashboard)
+
+// ===== Modul INVENTORY CONTROL (Stock, Log Activity Usage & Highlight, Asset IT & NCA, Audit Log) =====
+const FB_INV_ROOT = "inventoryControl";
+const INV_FACILITY = "SOC"; // SOC & EHA sekarang 1 cabang Firebase gabungan (inventoryControl/SOC/...) —
+                             // "SOC" di sini CUMA nama path internal, pembeda SOC/EHA yang beneran cuma
+                             // di field "devisi" tiap Log Activity Usage. SAMA PERSIS pola inventory-control.html.
+let currentInvStock = {};      // { assetId: {name, category, unit, qty, minStock, note, updatedAt, updatedBy, createdAt, createdBy} }
+let currentInvUsageLogs = {};  // { logId: {assetId, assetName, unit, qtyUsed, workingDate(YYYY-MM-DD), devisi(SOC/EHA), createdAt, createdBy} } — 500 log terakhir
+let currentInvAssetItNca = {}; // { itemId: {name, jenis(IT/NCA), qty, serial, pic, lokasi, status, note, updatedAt, updatedBy} }
+let currentInvAuditLog = {};   // { logId: {module, action(create/update/delete), itemName, detail, changedAt, changedBy} } — 300 log terakhir
+
+// Data import Outbound disimpen di Firebase dalam bentuk COLUMNAR + GZIP base64 (biar hemat kuota,
+// SAMA PERSIS teknik yang dipakai outbound.html sendiri) — jadi harus di-decode balik di sini dulu
+// sebelum dipakai buat jawab pertanyaan.
+function outboundBase64ToUint8(base64){
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes;
+}
+async function outboundDecompressFromBase64(base64){
+  const bytes = outboundBase64ToUint8(base64);
+  const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("gzip"));
+  return await new Response(stream).text();
+}
+function outboundFromColumnar(columnar){
+  if (!columnar || !columnar.fields || !columnar.length) return [];
+  const fields = columnar.fields, length = columnar.length, columns = columnar.columns;
+  const rows = new Array(length);
+  for (let i = 0; i < length; i++){
+    const row = {};
+    for (let f = 0; f < fields.length; f++) row[fields[f]] = columns[fields[f]][i];
+    rows[i] = row;
+  }
+  return rows;
+}
+
+function fetchOutboundData(){
+  return new Promise((resolve, reject) => {
+    if (!window.firebase || !firebase.apps || !firebase.apps.length){
+      reject(new Error("Firebase belum ke-init (auth-guard.js gak ketemu / belum login)"));
+      return;
+    }
+    if (!firebase.auth().currentUser){
+      reject(new Error("Belum login — buka file ini lewat app shell / login dulu"));
+      return;
+    }
+    const db = firebase.database();
+    Promise.all([
+      db.ref(FB_OUTBOUND_ROOT + "/latestImportMeta").once("value"),
+      db.ref(FB_OUTBOUND_ROOT + "/latestImportData").once("value")
+    ]).then(function (snaps) {
+      const meta = snaps[0].val() || null;
+      const payload = snaps[1].val();
+      if (!payload || !payload.dataGz){ resolve({ rows: [], meta: meta }); return; }
+      outboundDecompressFromBase64(payload.dataGz).then(function (jsonStr) {
+        let columnar;
+        try { columnar = JSON.parse(jsonStr); } catch (e) { reject(e); return; }
+        const rows = outboundFromColumnar(columnar).map(function (row) {
+          return Object.assign({}, row, {
+            completeDateObj: row.completeDateObj ? new Date(row.completeDateObj) : null
+          });
+        });
+        resolve({ rows: rows, meta: meta });
+      }).catch(reject);
+    }).catch(reject);
+  });
+}
+
+// ===== Jadwal keberangkatan Linehaul modul Outbound (Occupancy & Shift Departure Schedule) — config
+// STATIS (bukan dari Firebase), di-COPY PERSIS dari konstanta "linehaulSchedule" di outbound.html,
+// biar Odyssey tau jadwal per rute tanpa perlu sumber data tambahan. =====
+const outboundLinehaulSchedule = [
+  { dest: "Sebangau Hub - Jekan Raya Hub", slot: 1, time: "21:00", hubs: ["Sebangau Hub", "Jekan Raya Hub"] },
+  { dest: "Sebangau Hub - Jekan Raya Hub", slot: 2, time: "03:00", hubs: ["Sebangau Hub", "Jekan Raya Hub"] },
+  { dest: "Sebangau Hub - Jekan Raya Hub", slot: 3, time: "11:25", hubs: ["Sebangau Hub", "Jekan Raya Hub"] },
+  { dest: "Pahandut Hub - Pahandut 3 Hub", slot: 1, time: "21:00", hubs: ["Pahandut Hub", "Pahandut 3 Hub"] },
+  { dest: "Pahandut Hub - Pahandut 3 Hub", slot: 2, time: "03:15", hubs: ["Pahandut Hub", "Pahandut 3 Hub"] },
+  { dest: "Pahandut Hub - Pahandut 3 Hub", slot: 3, time: "10:40", hubs: ["Pahandut Hub", "Pahandut 3 Hub"] },
+  { dest: "Palangka Raya Hub - Bukit Batu Kota Palangka Raya Hub - Rakumpit Hub", slot: 1, time: "21:00", hubs: ["Palangka Raya Hub", "Bukit Batu Kota Palangka Raya Hub", "Rakumpit Hub"] },
+  { dest: "Palangka Raya Hub - Bukit Batu Kota Palangka Raya Hub", slot: 2, time: "02:40", hubs: ["Palangka Raya Hub", "Bukit Batu Kota Palangka Raya Hub"] },
+  { dest: "Palangka Raya Hub - Bukit Batu Kota Palangka Raya Hub - Rakumpit Hub", slot: 3, time: "09:20", hubs: ["Palangka Raya Hub", "Bukit Batu Kota Palangka Raya Hub", "Rakumpit Hub"] },
+  { dest: "Timpah Hub", slot: 1, time: "19:05", hubs: ["Timpah Hub"] },
+  { dest: "Khayan Hilir Hub - Maliku Hub", slot: 1, time: "20:00", hubs: ["Khayan Hilir Hub", "Maliku Hub"] },
+  { dest: "Khayan Hilir Hub - Maliku Hub", slot: 2, time: "08:30", hubs: ["Khayan Hilir Hub", "Maliku Hub"] },
+  { dest: "Khayan Hilir Hub - Maliku Hub", slot: 3, time: "13:00", hubs: ["Khayan Hilir Hub", "Maliku Hub"] },
+  { dest: "Kasongan Hub - Tewang Sanggalang Garing (Sangalang) Hub", slot: 1, time: "19:25", hubs: ["Kasongan Hub", "Tewang Sanggalang Garing (Sangalang) Hub"] },
+  { dest: "Katingan Tengah Hub", slot: 1, time: "14:00", hubs: ["Katingan Tengah Hub"] },
+  { dest: "Katingan Hilir 2 Hub - Cempaga Hulu 2 Hub - Cempaga Hulu Hub", slot: 1, time: "19:30", hubs: ["Katingan Hilir 2 Hub", "Cempaga Hulu 2 Hub", "Cempaga Hulu Hub"] },
+  { dest: "Katingan Hilir 2 Hub - Cempaga Hulu 2 Hub - Cempaga Hulu Hub", slot: 2, time: "11:30", hubs: ["Katingan Hilir 2 Hub", "Cempaga Hulu 2 Hub", "Cempaga Hulu Hub"] },
+  { dest: "Kurun Hub - Kurun 3 Hub - Tewah Hub", slot: 1, time: "19:00", hubs: ["Kurun Hub", "Kurun 3 Hub", "Tewah Hub"] },
+  { dest: "Kurun Hub - Kurun 3 Hub - Tewah Hub", slot: 2, time: "09:15", hubs: ["Kurun Hub", "Kurun 3 Hub", "Tewah Hub"] },
+  { dest: "Parenggean 5 Hub - Parenggean Hub", slot: 1, time: "20:05", hubs: ["Parenggean 5 Hub", "Parenggean Hub"] },
+  { dest: "Parenggean 5 Hub - Parenggean Hub", slot: 2, time: "10:10", hubs: ["Parenggean 5 Hub", "Parenggean Hub"] },
+  { dest: "Telaga Antang Hub - Antang Kalang Hub", slot: 1, time: "19:35", hubs: ["Telaga Antang Hub", "Antang Kalang Hub"] },
+  { dest: "Telaga Antang Hub - Antang Kalang Hub", slot: 2, time: "10:10", hubs: ["Telaga Antang Hub", "Antang Kalang Hub"] },
+  { dest: "Cempaga Hub - Kota Besi Hub", slot: 1, time: "20:15", hubs: ["Cempaga Hub", "Kota Besi Hub"] },
+  { dest: "Mentawa Baru Hub", slot: 1, time: "17:00", hubs: ["Mentawa Baru Hub"] },
+  { dest: "Mentawa Baru Hub", slot: 2, time: "20:20", hubs: ["Mentawa Baru Hub"] },
+  { dest: "Mentawa Baru Hub", slot: 3, time: "09:20", hubs: ["Mentawa Baru Hub"] },
+  { dest: "Mentaya Hilir Selatan Hub - Mentaya Hilir Utara Hub", slot: 1, time: "20:25", hubs: ["Mentaya Hilir Selatan Hub", "Mentaya Hilir Utara Hub"] },
+  { dest: "Mentaya Hilir Selatan Hub - Mentaya Hilir Utara Hub", slot: 2, time: "09:25", hubs: ["Mentaya Hilir Selatan Hub", "Mentaya Hilir Utara Hub"] },
+  { dest: "Mentaya Hulu Hub", slot: 1, time: "14:00", hubs: ["Mentaya Hulu Hub"] },
+  { dest: "Mentaya Hulu Hub", slot: 2, time: "20:30", hubs: ["Mentaya Hulu Hub"] },
+  { dest: "Mentaya Hulu Hub", slot: 3, time: "09:30", hubs: ["Mentaya Hulu Hub"] },
+  { dest: "Baamang 2 Hub - Baamang Hub", slot: 1, time: "13:00", hubs: ["Baamang 2 Hub", "Baamang Hub"] },
+  { dest: "Baamang 2 Hub - Baamang Hub - Baamang 3 Hub", slot: 2, time: "19:30", hubs: ["Baamang 2 Hub", "Baamang Hub", "Baamang 3 Hub"] },
+  { dest: "Baamang 2 Hub - Baamang Hub - Baamang 3 Hub", slot: 3, time: "10:00", hubs: ["Baamang 2 Hub", "Baamang Hub", "Baamang 3 Hub"] },
+  { dest: "Telawang Hub - Danau Seluluk hub - Hanau Hub", slot: 1, time: "16:55", hubs: ["Telawang Hub", "Danau Seluluk hub", "Danau Seluluk Hub", "Hanau Hub"] },
+  { dest: "Telawang Hub - Danau Seluluk hub - Hanau Hub", slot: 2, time: "09:35", hubs: ["Telawang Hub", "Danau Seluluk hub", "Danau Seluluk Hub", "Hanau Hub"] },
+  { dest: "Telawang Hub - Danau Seluluk hub - Hanau Hub", slot: 3, time: "13:00", hubs: ["Telawang Hub", "Danau Seluluk hub", "Danau Seluluk Hub", "Hanau Hub"] },
+  { dest: "Pangkalan Banteng 2 Hub - Pangkalan Banteng Hub - Pangkalan Lada Hub", slot: 1, time: "09:40", hubs: ["Pangkalan Banteng 2 Hub", "Pangkalan Banteng Hub", "Pangkalan Lada Hub"] },
+  { dest: "Pangkalan Banteng 2 Hub - Pangkalan Banteng Hub - Pangkalan Lada Hub", slot: 2, time: "20:00", hubs: ["Pangkalan Banteng 2 Hub", "Pangkalan Banteng Hub", "Pangkalan Lada Hub"] },
+  { dest: "Seruyan Hilir Hub - Seruyan Hilir Timur Hub - Teluk Sampit Hub", slot: 1, time: "13:00", hubs: ["Seruyan Hilir Hub", "Seruyan Hilir Timur Hub", "Teluk Sampit Hub"] },
+  { dest: "Seruyan Hilir Hub - Seruyan Hilir Timur Hub - Teluk Sampit Hub", slot: 2, time: "19:20", hubs: ["Seruyan Hilir Hub", "Seruyan Hilir Timur Hub", "Teluk Sampit Hub"] },
+  { dest: "Arut Selatan Hub - Arut Selatan 3 Hub - Kumai Hub", slot: 1, time: "09:50", hubs: ["Arut Selatan Hub", "Arut Selatan 3 Hub", "Kumai Hub"] },
+  { dest: "Arut Selatan Hub - Arut Selatan 3 Hub - Kumai Hub", slot: 2, time: "15:00", hubs: ["Arut Selatan Hub", "Arut Selatan 3 Hub", "Kumai Hub"] },
+  { dest: "Arut Selatan Hub - Arut Selatan 3 Hub - Kumai Hub", slot: 3, time: "19:35", hubs: ["Arut Selatan Hub", "Arut Selatan 3 Hub", "Kumai Hub"] },
+  { dest: "Nengah Bulik Hub - Bulik Hub", slot: 1, time: "11:00", hubs: ["Nengah Bulik Hub", "Bulik Hub"] },
+  { dest: "Nengah Bulik Hub - Bulik Hub", slot: 2, time: "21:20", hubs: ["Nengah Bulik Hub", "Bulik Hub"] },
+  { dest: "Balai Riam Hub - Balai Riam 2 Hub", slot: 1, time: "12:25", hubs: ["Balai Riam Hub", "Balai Riam 2 Hub"] },
+  { dest: "Kotawaringin Lama 2 Hub - Kotawaringin Lama Hub", slot: 1, time: "10:55", hubs: ["Kotawaringin Lama 2 Hub","Kotawaringin Lama Hub"] },
+  { dest: "Sukamara Hub", slot: 1, time: "11:45", hubs: ["Sukamara Hub"] },
+  { dest: "Kahayan Tengah Hub", slot: 1, time: "01:30", hubs: ["Kahayan Tengah Hub"] },
+  { dest: "Sukamara Hub", slot: 2, time: "19:45", hubs: ["Sukamara Hub"] }
+];
+
+function outboundShiftFromTimeStr(timeStr){
+  if (!timeStr || timeStr === "-") return "Shift 1";
+  const parts = timeStr.split(":");
+  const totalMinutes = (parseInt(parts[0], 10) || 0) * 60 + (parseInt(parts[1], 10) || 0);
+  const GRACE = 40; // SAMA PERSIS grace period pergantian shift di outbound.html
+  if (totalMinutes >= GRACE && totalMinutes < (8 * 60) + GRACE) return "Shift 1";
+  if (totalMinutes >= (8 * 60) + GRACE && totalMinutes < (16 * 60) + GRACE) return "Shift 2";
+  return "Shift 3";
+}
+const outboundLinehaulRoutes = Array.from(new Set(outboundLinehaulSchedule.map(function (s) { return s.dest; })))
+  .map(function (label, idx) {
+    const hubs = Array.from(new Set(outboundLinehaulSchedule.filter(function (s) { return s.dest === label; }).flatMap(function (s) { return s.hubs; })));
+    return { id: idx + 1, label: label, hubs: hubs };
+  });
+function outboundTimeStrToMinutes(timeStr){
+  const parts = String(timeStr || "0:0").split(":");
+  return (parseInt(parts[0], 10) || 0) * 60 + (parseInt(parts[1], 10) || 0);
+}
+const outboundHubDepartureMinutesMap = {};
+outboundLinehaulSchedule.forEach(function (s) {
+  const mins = outboundTimeStrToMinutes(s.time);
+  s.hubs.forEach(function (h) {
+    if (!outboundHubDepartureMinutesMap[h]) outboundHubDepartureMinutesMap[h] = [];
+    outboundHubDepartureMinutesMap[h].push(mins);
+  });
+});
+Object.keys(outboundHubDepartureMinutesMap).forEach(function (h) { outboundHubDepartureMinutesMap[h].sort(function (a, b) { return a - b; }); });
+
+// SAMA PERSIS logic getDeliveryShiftForItem() di outbound.html — shift sebuah parcel ditentukan dari
+// keberangkatan hub terdekat SESUDAH jam packing, bukan cuma dibagi rata jam packing / 8 jam.
+function outboundDeliveryShiftForItem(item){
+  if (!item.completeDateObj) return item.shift;
+  const packMinutes = item.completeDateObj.getHours() * 60 + item.completeDateObj.getMinutes();
+  const times = outboundHubDepartureMinutesMap[item.receiverName];
+  if (!times || times.length === 0) return item.shift;
+  let nextMinutes = times.find(function (t) { return t >= packMinutes; });
+  if (nextMinutes === undefined) nextMinutes = times[0];
+  const hh = String(Math.floor(nextMinutes / 60)).padStart(2, "0");
+  const mm = String(nextMinutes % 60).padStart(2, "0");
+  return outboundShiftFromTimeStr(hh + ":" + mm);
+}
+// SAMA PERSIS logic getDepartureStatus() di outbound.html
+function outboundDepartureStatusText(timeStr){
+  const now = new Date();
+  const parts = timeStr.split(":");
+  const target = new Date(now.getFullYear(), now.getMonth(), now.getDate(), parseInt(parts[0], 10), parseInt(parts[1], 10) || 0);
+  const diffMinutes = (target - now) / 60000;
+  if (diffMinutes < 0) return "Lewat Jadwal";
+  if (diffMinutes <= 30) return "Segera (kurang dari 30 menit)";
+  return "Terjadwal";
+}
+// SAMA PERSIS logic getRouteAlert() di outbound.html
+function outboundRouteAlert(pct){
+  if (pct > 150) return { level: "CRITICAL", text: "Need Early Load + Slot Tambahan (Follow Up Team MM)" };
+  if (pct > 100) return { level: "URGENT", text: "Need Early Loading Segera (Follow Up Team MM)" };
+  if (pct > 50) return { level: "WATCH", text: "Need Early Loading (Follow Up Team MM)" };
+  return { level: "AMAN", text: "Kondisi Normal, Belum Perlu Tindakan" };
+}
+
+// Setting kapasitas & SLA modul Outbound — dibaca dari localStorage KALAU report-agent.html satu
+// origin sama outbound.html (sesuai pola app shell di project ini), biar angkanya nyambung PERSIS
+// sama yang di-setting Shift Lead di System Settings dashboard Outbound. Kalau gak ketemu (origin
+// beda / localStorage kosong), fallback ke DEFAULT BAWAAN outbound.html sendiri.
+function outboundGetNum(key, fallback){
+  const v = parseFloat(localStorage.getItem(key));
+  return isNaN(v) ? fallback : v;
+}
+function outboundGetSettings(){
+  return {
+    destCapacity: outboundGetNum("pkr_outbound_dest_capacity", 2000),
+    maxStagingCapacity: outboundGetNum("pkr_outbound_max_staging_capacity", 85000),
+    slaOccTarget: outboundGetNum("pkr_outbound_sla_occ", 85),
+    slaAgingTarget: outboundGetNum("pkr_outbound_sla_aging", 5)
+  };
+}
+
+// Bikin RINGKASAN AGREGAT modul Outbound (Aging & Packer Backlog + Occupancy & Shift) dari data
+// mentah per-parcel — REPLIKASI PERSIS logic hitung di outbound.html (renderDashboard(),
+// renderPackerLeaderboard(), renderShiftTable(), renderExecutiveSummary(), dst), biar angka yang
+// Odyssey sebut ke user SAMA PERSIS kayak yang keliatan di dashboard Outbound. Sengaja GAK ngirim
+// ribuan baris parcel mentah ke AI (boros token & lambat) — cukup ringkasan agregatnya aja, yang
+// notabene udah mencakup semua sudut pandang (per rute, per packer, per shift, per destinasi).
+function buildOutboundSummary(rawData){
+  const cfg = outboundGetSettings();
+  const total = rawData.length;
+  const parcelCount = rawData.filter(function (d) { return d.packingMethod === "Assisted Sorting"; }).length;
+  const bulkyCount = rawData.filter(function (d) { return d.packingMethod === "Individual Packing"; }).length;
+  const hvCount = rawData.filter(function (d) { return d.isHv; }).length;
+  const liquidCount = rawData.filter(function (d) { return d.isLiquid; }).length;
+  const criticalParcels = rawData.filter(function (d) { return d.agingDays > 4; }).length;
+  const capPctRaw = cfg.maxStagingCapacity > 0 ? (total / cfg.maxStagingCapacity) * 100 : 0;
+  const criticalPctOfTotal = total > 0 ? (criticalParcels / total) * 100 : 0;
+
+  // Breakdown Volume & Aging Days Inner Island (per rute linehaul terjadwal)
+  const routeVolumes = outboundLinehaulRoutes.map(function (r) {
+    return { label: r.label, total: 0, parcel: 0, bulky: 0, d0: 0, d1: 0, d2: 0, d3: 0, d4: 0, d5: 0, d6: 0, dMore: 0 };
+  });
+  const outerIslandMap = {};
+  rawData.forEach(function (item) {
+    const isParcel = item.packingMethod === "Assisted Sorting";
+    const isBulky = item.packingMethod === "Individual Packing";
+    let matched = false;
+    for (let i = 0; i < outboundLinehaulRoutes.length; i++){
+      if (outboundLinehaulRoutes[i].hubs.includes(item.receiverName)){
+        const r = routeVolumes[i];
+        r.total++;
+        if (isParcel) r.parcel++;
+        if (isBulky) r.bulky++;
+        if (item.agingDays === 0) r.d0++;
+        else if (item.agingDays === 1) r.d1++;
+        else if (item.agingDays === 2) r.d2++;
+        else if (item.agingDays === 3) r.d3++;
+        else if (item.agingDays === 4) r.d4++;
+        else if (item.agingDays === 5) r.d5++;
+        else if (item.agingDays === 6) r.d6++;
+        else if (item.agingDays > 6) r.dMore++;
+        matched = true;
+        break;
+      }
+    }
+    if (!matched){
+      if (!outerIslandMap[item.receiverName]) outerIslandMap[item.receiverName] = { name: item.receiverName, total: 0, parcel: 0 };
+      outerIslandMap[item.receiverName].total++;
+      outerIslandMap[item.receiverName].parcel++;
+    }
+  });
+  // Cap (%) Inner Island pakai kapasitas tetap 4000/rute (SAMA PERSIS outbound.html)
+  routeVolumes.forEach(function (r) { r.capPct = Number(((r.total / 4000) * 100).toFixed(1)); });
+  routeVolumes.sort(function (a, b) { return b.total - a.total; });
+  // Cap (%) Outer Island pakai DESTINATION_CAPACITY per destinasi (setting System Settings)
+  const outerIslandList = Object.values(outerIslandMap).map(function (r) {
+    return Object.assign({}, r, { capPct: Number((cfg.destCapacity > 0 ? (r.total / cfg.destCapacity) * 100 : 0).toFixed(1)) });
+  }).sort(function (a, b) { return b.total - a.total; });
+
+  // Priority Action Center — Top 5 Rute Occupancy Tertinggi (gabungan Inner + Outer)
+  const top5Priority = routeVolumes.map(function (r) { return { label: r.label, total: r.total, pct: (r.total / 4000) * 100, category: "Inner" }; })
+    .concat(outerIslandList.map(function (r) { return { label: r.name, total: r.total, pct: (r.total / 2000) * 100, category: "Outer" }; }))
+    .sort(function (a, b) { return b.pct - a.pct; }).slice(0, 5)
+    .map(function (r) {
+      const alert = outboundRouteAlert(r.pct);
+      return { rute: r.label, kategori: r.category, totalParcel: r.total, persenOccupancy: Number(r.pct.toFixed(1)), levelAlert: alert.level, rekomendasiAksi: alert.text };
+    });
+
+  // Packer Leaderboard (Root Cause backlog kritis per operator)
+  const packerMap = {};
+  rawData.forEach(function (item) {
+    const p = item.lastPacker && item.lastPacker !== "-" ? item.lastPacker : "Unassigned / Unknown";
+    if (!packerMap[p]) packerMap[p] = { name: p, total: 0, d0: 0, d1: 0, d2: 0, d3: 0, d4: 0, d5: 0, d6: 0, criticalD6: 0 };
+    packerMap[p].total++;
+    if (item.agingDays === 0) packerMap[p].d0++;
+    else if (item.agingDays === 1) packerMap[p].d1++;
+    else if (item.agingDays === 2) packerMap[p].d2++;
+    else if (item.agingDays === 3) packerMap[p].d3++;
+    else if (item.agingDays === 4) packerMap[p].d4++;
+    else if (item.agingDays === 5) packerMap[p].d5++;
+    else if (item.agingDays === 6) packerMap[p].d6++;
+    if (item.agingDays > 4) packerMap[p].criticalD6++;
+  });
+  const totalCriticalAll = Object.values(packerMap).reduce(function (s, p) { return s + p.criticalD6; }, 0);
+  const packerLeaderboard = Object.values(packerMap).map(function (p) {
+    return Object.assign({}, p, { kontribusiBacklogKritisPct: totalCriticalAll > 0 ? Number(((p.criticalD6 / totalCriticalAll) * 100).toFixed(1)) : 0 });
+  }).sort(function (a, b) { return b.total - a.total; }).slice(0, 30); // batasin Top 30 biar payload gak membengkak
+
+  // Perbandingan Volume Parcel per Shift (pakai jadwal keberangkatan hub, bukan cuma jam packing)
+  let s1 = 0, s2 = 0, s3 = 0;
+  rawData.forEach(function (d) {
+    const sh = outboundDeliveryShiftForItem(d);
+    if (sh === "Shift 1") s1++; else if (sh === "Shift 2") s2++; else s3++;
+  });
+
+  // Shift Departure Schedule & Heatmap Monitoring (jadwal + status real-time SEKARANG)
+  const shiftSchedule = outboundLinehaulSchedule.map(function (s) {
+    return { rute: s.dest, slot: s.slot, jamKeberangkatan: s.time, shift: outboundShiftFromTimeStr(s.time), statusSekarang: outboundDepartureStatusText(s.time) };
+  }).sort(function (a, b) { return a.jamKeberangkatan.localeCompare(b.jamKeberangkatan); });
+
+  // Verdict keseluruhan DC — SAMA PERSIS logic renderExecutiveSummary() di outbound.html
+  const worst = top5Priority.length > 0 ? top5Priority[0] : null;
+  const routeCritical = worst && (worst.levelAlert === "CRITICAL" || worst.levelAlert === "URGENT");
+  const routeWatch = worst && worst.levelAlert === "WATCH";
+  let verdict = "AMAN";
+  if (capPctRaw >= 100 || routeCritical || criticalPctOfTotal > cfg.slaAgingTarget * 2) verdict = "KRITIS";
+  else if (capPctRaw >= cfg.slaOccTarget || criticalPctOfTotal > cfg.slaAgingTarget || routeWatch) verdict = "WASPADA";
+
+  return {
+    infoImportTerakhir: currentOutboundMeta,
+    ringkasanEksekutif: {
+      totalParcelDiStagingArea: total,
+      breakdownTipePacking: { parcel_AssistedSorting: parcelCount, bulky_IndividualPacking: bulkyCount, highValue: hvCount, liquid: liquidCount },
+      backlogKritis_AgingLebihDari4Hari: criticalParcels,
+      persenBacklogKritisDariTotal: Number(criticalPctOfTotal.toFixed(1)),
+      kapasitasMaxStagingDC: cfg.maxStagingCapacity,
+      persenOkupansiStagingDC: Number(capPctRaw.toFixed(1)),
+      slaTargetOkupansiMaxPct: cfg.slaOccTarget,
+      slaTargetBacklogKritisMaxPct: cfg.slaAgingTarget,
+      verdictKondisiDC: verdict
+    },
+    volumeParcelPerShift: { "Shift 1 (00:00-09:00)": s1, "Shift 2 (08:00-17:00)": s2, "Shift 3 (16:00-01:00)": s3 },
+    breakdownVolumeAgingInnerIsland: routeVolumes,
+    breakdownVolumeOuterIsland: outerIslandList,
+    priorityActionCenter_Top5RuteOccupancyTertinggi: top5Priority,
+    packerLeaderboard_RootCauseBacklogKritis_Top30: packerLeaderboard,
+    shiftDepartureScheduleHeatmap: shiftSchedule
+  };
+}
+
+// ===== Roster staff & target achievement modul Performance Bagger — di-COPY PERSIS dari konstanta
+// "STAFF_ROSTER" & "ACHIEVEMENT_THRESHOLD" di performance-bagger.html (sama kayak pola
+// outboundLinehaulSchedule di atas: config statis, bukan dari Firebase, jadi harus disalin manual
+// kalau roster/target di dashboard-nya berubah biar Odyssey gak ketinggalan info). =====
+const PB_STAFF_ROSTER = [
+  // -- Dedicated Operator --
+  { name: "Muhammad Arifin 2", opsId: "Ops854217", agency: "MYROBIN", status: "Dedicated Operator" },
+  { name: "Muhammad Ramadani", opsId: "Ops767061", agency: "UGBM", status: "Dedicated Operator" },
+  { name: "Rivqy Akbar Riswana", opsId: "Ops664556", agency: "MYROBIN", status: "Dedicated Operator" },
+  { name: "Irvansyah", opsId: "Ops1089244", agency: "UGBM", status: "Dedicated Operator" },
+  { name: "Irvan Arifai", opsId: "Ops1089247", agency: "MYROBIN", status: "Dedicated Operator" },
+  { name: "RAHMAN", opsId: "Ops1868559", agency: "UGBM", status: "Dedicated Operator" },
+  { name: "Ahmad Mujib", opsId: "Ops1868562", agency: "MYROBIN", status: "Dedicated Operator" },
+  { name: "Egianor", opsId: "Ops767000", agency: "MYROBIN", status: "Dedicated Operator" },
+  { name: "Kristian 2", opsId: "Ops854200", agency: "MYROBIN", status: "Dedicated Operator" },
+  { name: "NOURHUSEINI", opsId: "Ops1868566", agency: "MYROBIN", status: "Dedicated Operator" },
+  { name: "Sigit Royan Arifin", opsId: "Ops1868565", agency: "UGBM", status: "Dedicated Operator" },
+  { name: "Oki Rawana", opsId: "Ops1868561", agency: "UGBM", status: "Dedicated Operator" },
+  { name: "Rizky Setiawan", opsId: "Ops1868560", agency: "MYROBIN", status: "Dedicated Operator" },
+  { name: "Obed Yordan Grace Saputra", opsId: "Ops434094", agency: "UGBM", status: "Dedicated Operator" },
+  { name: "Amrollah", opsId: "Ops664552", agency: "MYROBIN", status: "Dedicated Operator" },
+  { name: "Sendy Delfrid Nugraha", opsId: "Ops767430", agency: "UGBM", status: "Dedicated Operator" },
+  { name: "Amirol Cahya Alfian", opsId: "Ops654983", agency: "UGBM", status: "Dedicated Operator" },
+  { name: "Debie Dante Ugul", opsId: "Ops664560", agency: "UGBM", status: "Dedicated Operator" },
+  { name: "Muhammad Ali 3", opsId: "Ops854235", agency: "UGBM", status: "Dedicated Operator" },
+  { name: "M.ADITIA RIZKY", opsId: "Ops1865262", agency: "UGBM", status: "Dedicated Operator" },
+  { name: "Doni Sukma Irawan", opsId: "Ops1865261", agency: "UGBM", status: "Dedicated Operator" },
+  { name: "Ahmad Awalluddin", opsId: "Ops1865264", agency: "MYROBIN", status: "Dedicated Operator" },
+  { name: "Ahmad Irfan", opsId: "Ops1865259", agency: "UGBM", status: "Dedicated Operator" },
+  { name: "Muhammad Putra Arifin", opsId: "Ops1867071", agency: "UGBM", status: "Dedicated Operator" },
+  { name: "Rakhmadani", opsId: "Ops1089309", agency: "MYROBIN", status: "Dedicated Operator" },
+  { name: "Ilham Setiawan", opsId: "Ops318889", agency: "UGBM", status: "Dedicated Operator" },
+  { name: "Ahmad Mustafa", opsId: "Ops1867074", agency: "UGBM", status: "Dedicated Operator" },
+  { name: "Akhmad Fikri", opsId: "Ops767468", agency: "UGBM", status: "Dedicated Operator" },
+  { name: "Helmy Akbar", opsId: "Ops615716", agency: "MYROBIN", status: "Dedicated Operator" },
+  { name: "Bendi Herawan", opsId: "Ops1867070", agency: "MYROBIN", status: "Dedicated Operator" },
+  { name: "Dedi Setiawan 6", opsId: "Ops694308", agency: "UGBM", status: "Dedicated Operator" },
+  { name: "Nanda Miko Priambada", opsId: "Ops1867073", agency: "UGBM", status: "Dedicated Operator" },
+  { name: "Meici Ariadi", opsId: "Ops1867072", agency: "MYROBIN", status: "Dedicated Operator" },
+  { name: "Andi Alfian Fadillah", opsId: "Ops1089305", agency: "UGBM", status: "Dedicated Operator" },
+  { name: "Alpianor", opsId: "Ops434089", agency: "UGBM", status: "Dedicated Operator" },
+  { name: "Muhammad Rizky 8", opsId: "Ops616037", agency: "UGBM", status: "Dedicated Operator" },
+  { name: "Muhammad Dali 2", opsId: "Ops853924", agency: "UGBM", status: "Dedicated Operator" },
+  { name: "Ahmad Ananda Nurwansyah", opsId: "Ops1089276", agency: "UGBM", status: "Dedicated Operator" },
+  { name: "Deddy Wahyudi", opsId: "Ops1858809", agency: "UGBM", status: "Dedicated Operator" },
+  { name: "Ginanjar Ady Yoga", opsId: "Ops1872556", agency: "MYROBIN", status: "Dedicated Operator" },
+  { name: "Decky Norhadi", opsId: "Ops1872557", agency: "UGBM", status: "Dedicated Operator" },
+  { name: "Wardi Saputra", opsId: "Ops1872559", agency: "UGBM", status: "Dedicated Operator" },
+  { name: "DEFRI ANDREADI", opsId: "Ops1872555", agency: "MYROBIN", status: "Dedicated Operator" },
+  { name: "AHMAD MUTALIB", opsId: "Ops1872558", agency: "IPI", status: "Dedicated Operator" },
+
+  // -- DW Reguler Pria --
+  { name: "MUHAMMAD NAZRIL ILHAM", opsId: "Ops1935449", agency: "IPI", status: "DW Reguler Pria" },
+  { name: "AKMAL LUNABIL", opsId: "Ops1472837", agency: "UGBM", status: "DW Reguler Pria" },
+  { name: "DANO ALAM", opsId: "Ops1455291", agency: "UGBM", status: "DW Reguler Pria" },
+  { name: "MUHTADI", opsId: "Ops1566700", agency: "UGBM", status: "DW Reguler Pria" },
+  { name: "RESKY JULIAN PRASETYA", opsId: "Ops1836037", agency: "UGBM", status: "DW Reguler Pria" },
+  { name: "NORDIN", opsId: "Ops1955171", agency: "MYROBIN", status: "DW Reguler Pria" },
+  { name: "MUHAMMAD FIQRI", opsId: "Ops1444429", agency: "UGBM", status: "DW Reguler Pria" },
+  { name: "NUR FUADY", opsId: "Ops1972742", agency: "MYROBIN", status: "DW Reguler Pria" },
+  { name: "HAIRUL RASIYD", opsId: "Ops1941249", agency: "MYROBIN", status: "DW Reguler Pria" },
+  { name: "AHMAD HAIKAL", opsId: "Ops1876859", agency: "MYROBIN", status: "DW Reguler Pria" },
+  { name: "MUHAMAT HANDRI", opsId: "Ops1876858", agency: "MYROBIN", status: "DW Reguler Pria" },
+  { name: "AHMAD GAZALI", opsId: "Ops2036371", agency: "MYROBIN", status: "DW Reguler Pria" },
+  { name: "MUHAMMAD LEVIARDI", opsId: "Ops1883739", agency: "UGBM", status: "DW Reguler Pria" },
+  { name: "ADE IRAWAN", opsId: "Ops1123073", agency: "MYROBIN", status: "DW Reguler Pria" },
+  { name: "BUDI SANTOSO", opsId: "Ops1894719", agency: "IPI", status: "DW Reguler Pria" },
+  { name: "A.BUDIMAN", opsId: "Ops1337674", agency: "MYROBIN", status: "DW Reguler Pria" },
+  { name: "AHMAD HAFI", opsId: "Ops1858260", agency: "MYROBIN", status: "DW Reguler Pria" },
+  { name: "MUHAMMAD BAHIT", opsId: "Ops1926180", agency: "MYROBIN", status: "DW Reguler Pria" },
+  { name: "ABDUL SALAM", opsId: "Ops889367", agency: "IPI", status: "DW Reguler Pria" },
+  { name: "HARDIMAN", opsId: "Ops1352179", agency: "UGBM", status: "DW Reguler Pria" },
+  { name: "RIO ARDIANSYAH", opsId: "Ops1357285", agency: "UGBM", status: "DW Reguler Pria" },
+  { name: "IMAM GHAZALI", opsId: "Ops1231724", agency: "MYROBIN", status: "DW Reguler Pria" },
+  { name: "MUHAMMAD RIVAN", opsId: "Ops1164383", agency: "UGBM", status: "DW Reguler Pria" },
+  { name: "Ahmad Al Fatah", opsId: "Ops1899115", agency: "MYROBIN", status: "DW Reguler Pria" },
+  { name: "AKHMAD IBRAHIM", opsId: "Ops1783069", agency: "MYROBIN", status: "DW Reguler Pria" },
+  { name: "MUHAMMAD THAZIM", opsId: "Ops1809768", agency: "UGBM", status: "DW Reguler Pria" },
+  { name: "IQBAL BASTIAN DAPUTRA MANALU", opsId: "Ops1835326", agency: "MYROBIN", status: "DW Reguler Pria" },
+  { name: "MUHAMMAD ANAS RIYANTO", opsId: "Ops1714824", agency: "UGBM", status: "DW Reguler Pria" },
+  { name: "MUHAMMAD BRYAN SYAHWAL", opsId: "Ops1866196", agency: "UGBM", status: "DW Reguler Pria" },
+  { name: "IRPA BUSROL KARIM", opsId: "Ops1856698", agency: "IPI", status: "DW Reguler Pria" },
+  { name: "NUR WIJAYA", opsId: "Ops1861742", agency: "UGBM", status: "DW Reguler Pria" },
+  { name: "MUHAMMAD ALDY RAMADHAN", opsId: "Ops1887650", agency: "IPI", status: "DW Reguler Pria" },
+  { name: "KRISTO VORUS WOGE NDROE", opsId: "Ops1887649", agency: "IPI", status: "DW Reguler Pria" },
+  { name: "MUHAMMAD SAKRONI", opsId: "Ops1895367", agency: "UGBM", status: "DW Reguler Pria" },
+  { name: "WAHYU ALAMSYAH", opsId: "Ops1724253", agency: "UGBM", status: "DW Reguler Pria" },
+  { name: "BAHRANI", opsId: "Ops1897682", agency: "IPI", status: "DW Reguler Pria" },
+  { name: "MUHAMMAD NUR ICHWANTO", opsId: "Ops1956926", agency: "MYROBIN", status: "DW Reguler Pria" },
+  { name: "AURUM", opsId: "Ops1945014", agency: "MYROBIN", status: "DW Reguler Pria" },
+  { name: "Suriansyah", opsId: "Ops970452", agency: "MYROBIN", status: "DW Reguler Pria" },
+  { name: "ALDI SAPUTRA", opsId: "Ops1882883", agency: "IPI", status: "DW Reguler Pria" },
+  { name: "PAULUS THALAWANG WOGE NDORE", opsId: "Ops1956235", agency: "IPI", status: "DW Reguler Pria" },
+  { name: "TRIO PATRAMAN JOSAFAT SIANTURI", opsId: "Ops1733568", agency: "MYROBIN", status: "DW Reguler Pria" },
+
+  // -- DW Reguler Wanita --
+  { name: "YANTI", opsId: "Ops1461807", agency: "MYROBIN", status: "DW Reguler Wanita" },
+  { name: "FEBRILIYA ROFIKA SARI", opsId: "Ops1474257", agency: "IPI", status: "DW Reguler Wanita" },
+  { name: "NATALIA SIMAMORA", opsId: "Ops1357681", agency: "UGBM", status: "DW Reguler Wanita" },
+  { name: "DANUM UTAMI SUCI", opsId: "Ops1472842", agency: "UGBM", status: "DW Reguler Wanita" },
+  { name: "HERLINA", opsId: "Ops1863387", agency: "IPI", status: "DW Reguler Wanita" },
+  { name: "NAZWA MAHARANI", opsId: "Ops1594622", agency: "MYROBIN", status: "DW Reguler Wanita" },
+  { name: "NOVIA", opsId: "Ops1858261", agency: "MYROBIN", status: "DW Reguler Wanita" },
+  { name: "DAHLIA", opsId: "Ops1576272", agency: "MYROBIN", status: "DW Reguler Wanita" },
+  { name: "SITI AFRILIYANI BUNSIAN", opsId: "Ops1880350", agency: "UGBM", status: "DW Reguler Wanita" },
+  { name: "CITRA ANASTASYA", opsId: "Ops1880345", agency: "UGBM", status: "DW Reguler Wanita" },
+  { name: "PUTRI NUR HIDAYAH", opsId: "Ops1863389", agency: "IPI", status: "DW Reguler Wanita" },
+  { name: "MARI ERLIAN", opsId: "Ops1835353", agency: "MYROBIN", status: "DW Reguler Wanita" },
+  { name: "DINALORENZA", opsId: "Ops1782461", agency: "MYROBIN", status: "DW Reguler Wanita" },
+  { name: "SINAWATI", opsId: "Ops1359488", agency: "MYROBIN", status: "DW Reguler Wanita" },
+  { name: "AMELIA", opsId: "Ops1880346", agency: "UGBM", status: "DW Reguler Wanita" }
+];
+
+const PB_ACHIEVEMENT_THRESHOLD = {
+  "Dedicated Operator": 6500,
+  "DW Reguler Pria": 6500,
+  "DW Reguler Wanita": 4500,
+  "DW On Call": 3000
+};
+
+function pbPad2(n){ return String(n).padStart(2, "0"); }
+
+// "Kemarin" versi tanggal lokal device (SAMA PERSIS getYesterdayDateStr() di performance-bagger.html) —
+// dipakai buat kolom "D+1 Packed (Quick View D+1)".
+function pbYesterdayLocal(){
+  const d = new Date();
+  d.setDate(d.getDate() - 1);
+  return d.getFullYear() + "-" + pbPad2(d.getMonth() + 1) + "-" + pbPad2(d.getDate());
+}
+
+// Range & label bulan berjalan (SAMA PERSIS currentMonthRange() di performance-bagger.html, tanpa
+// parameter monthStr karena Odyssey selalu ambil bulan berjalan device SEKARANG).
+function pbCurrentMonthRangeLocal(){
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = now.getMonth() + 1;
+  const bulanIndo = ["Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","September","Oktober","November","Desember"];
+  return {
+    start: y + "-" + pbPad2(m) + "-01",
+    end: y + "-" + pbPad2(m) + "-31",
+    label: bulanIndo[m - 1] + " " + y
+  };
+}
+
+// Ambil data LIVE dari Firebase root "prDcPerformanceBagger" — SAMA PERSIS sumber yang dipakai
+// dashboard performance-bagger.html (bulan berjalan buat dailyRecords, + 20 log import terakhir).
+// Data ini tersimpan sebagai JSON polos (BUKAN gzip/columnar kayak modul Outbound), jadi gak perlu
+// decompress, cukup baca langsung.
+function fetchPerformanceBaggerData(){
+  return new Promise((resolve, reject) => {
+    if (!window.firebase || !firebase.apps || !firebase.apps.length){
+      reject(new Error("Firebase belum ke-init (auth-guard.js gak ketemu / belum login)"));
+      return;
+    }
+    if (!firebase.auth().currentUser){
+      reject(new Error("Belum login — buka file ini lewat app shell / login dulu"));
+      return;
+    }
+    const db = firebase.database();
+    const range = pbCurrentMonthRangeLocal();
+    Promise.all([
+      db.ref(FB_PB_ROOT + "/dailyRecords").orderByKey().startAt(range.start).endAt(range.end).once("value"),
+      db.ref(FB_PB_ROOT + "/importLogs").once("value")
+    ]).then(function (snaps) {
+      const dailyRecords = snaps[0].val() || {};
+      const logsVal = snaps[1].val() || {};
+      const importLogs = Object.keys(logsVal).map(function (k) { return logsVal[k]; })
+        .sort(function (a, b) { return new Date(b.importedAt) - new Date(a.importedAt); })
+        .slice(0, 20);
+      resolve({ dailyRecords: dailyRecords, importLogs: importLogs });
+    }).catch(reject);
+  });
+}
+
+// Hitung agregat per operator — REPLIKASI PERSIS logic computePbAggregates() di performance-bagger.html
+// (total packed, rata-rata/hari, achievedDays vs target, d1Packed "kemarin", underStreak/overStreak
+// beruntun di bawah/atas target [ngabaikan hari Off Duty/Cuti/Sakit/Izin], growth 3 hari terakhir vs
+// 3 hari sebelumnya, badge Speed Demon/Most Consistent/On Fire) — supaya angka yang dijawab Odyssey
+// PERSIS sama kayak yang ditampilin di tabel dashboard Performance Bagger, bukan ngitung versi sendiri.
+function computePbAggregatesForAgent(dailyRecords){
+  const agg = {};
+  const targetDateStr = pbYesterdayLocal();
+
+  PB_STAFF_ROSTER.forEach(function (s) {
+    agg[s.opsId] = { name: s.name, opsId: s.opsId, agency: s.agency, status: s.status, total: 0, days: 0, achievedDays: 0, d1Packed: 0, dailyData: {}, dailyStatus: {} };
+  });
+
+  Object.keys(dailyRecords).forEach(function (dateStr) {
+    const dayData = dailyRecords[dateStr] || {};
+    Object.keys(dayData).forEach(function (opsId) {
+      const rec = dayData[opsId];
+      if (!agg[opsId]) {
+        agg[opsId] = { name: rec.name || opsId, opsId: opsId, agency: rec.agency || "-", status: "DW On Call", total: 0, days: 0, achievedDays: 0, d1Packed: 0, dailyData: {}, dailyStatus: {} };
+      }
+      const packed = rec.packed || 0;
+      agg[opsId].total += packed;
+      agg[opsId].days += 1;
+      agg[opsId].dailyData[dateStr] = packed;
+      agg[opsId].dailyStatus[dateStr] = rec.statusInfo || "Normal / Bekerja";
+      if (dateStr === targetDateStr) agg[opsId].d1Packed = packed;
+      const threshold = PB_ACHIEVEMENT_THRESHOLD[agg[opsId].status] || PB_ACHIEVEMENT_THRESHOLD["DW On Call"];
+      if (packed >= threshold) agg[opsId].achievedDays += 1;
+    });
+  });
+
+  let maxAvg = 0;
+  let topSpeedOpsId = null;
+
+  Object.keys(agg).forEach(function (opsId) {
+    const item = agg[opsId];
+    item.avg = item.days > 0 ? Math.round(item.total / item.days) : 0;
+    if (item.days > 0 && item.avg > maxAvg) { maxAvg = item.avg; topSpeedOpsId = opsId; }
+
+    const dates = Object.keys(item.dailyData).sort();
+    const threshold = PB_ACHIEVEMENT_THRESHOLD[item.status] || PB_ACHIEVEMENT_THRESHOLD["DW On Call"];
+
+    let underStreak = 0;
+    for (let i = dates.length - 1; i >= 0; i--) {
+      const dStr = dates[i];
+      const stInfo = item.dailyStatus[dStr];
+      const isOffDutyOrLeave = stInfo && stInfo !== "Normal / Bekerja";
+      if (item.dailyData[dStr] < threshold) { if (!isOffDutyOrLeave) underStreak++; }
+      else break;
+    }
+    item.underStreak = underStreak;
+
+    let overStreak = 0;
+    for (let i = dates.length - 1; i >= 0; i--) {
+      if (item.dailyData[dates[i]] >= threshold) overStreak++; else break;
+    }
+    item.overStreak = overStreak;
+
+    if (dates.length >= 4) {
+      const recent = dates.slice(-3).reduce(function (acc, d) { return acc + item.dailyData[d]; }, 0) / 3;
+      const prevSlice = dates.slice(-6, -3);
+      const prev = prevSlice.reduce(function (acc, d) { return acc + item.dailyData[d]; }, 0) / (dates.length >= 6 ? 3 : (dates.length - 3));
+      item.growth = prev > 0 ? Math.round(((recent - prev) / prev) * 100) : 0;
+    } else {
+      item.growth = 0;
+    }
+
+    const achRate = item.days > 0 ? (item.achievedDays / item.days) : null;
+    item.achievementRatePct = achRate !== null ? Number((achRate * 100).toFixed(1)) : null;
+    item.isRedFlag = item.days > 0 && ((achRate !== null && achRate < 0.5) || item.underStreak >= 3);
+    item.badgeMostConsistent = item.days >= 3 && item.achievedDays === item.days;
+    item.badgeOnFire = item.overStreak >= 3;
+    item.badgeSpeedDemon = false;
+  });
+
+  if (topSpeedOpsId) agg[topSpeedOpsId].badgeSpeedDemon = true;
+  return agg;
+}
+
+// Ringkasan lengkap modul Performance Bagger buat dikirim ke AI — mencakup semua sudut pandang yang
+// ada di dashboard (Hall of Fame Top 3, ringkasan achievement rate keseluruhan, breakdown per agency,
+// daftar Red Flag/Needs Coaching, ranking lengkap SEMUA operator di roster + badge & streak-nya, dan
+// riwayat import PDVT terakhir).
+function buildPerformanceBaggerSummary(dailyRecords, importLogs){
+  const range = pbCurrentMonthRangeLocal();
+  const agg = computePbAggregatesForAgent(dailyRecords);
+  const rows = Object.keys(agg).map(function (opsId) { return agg[opsId]; });
+  const withData = rows.filter(function (r) { return r.days > 0; });
+
+  let totalDaysAll = 0, totalAchievedAll = 0;
+  withData.forEach(function (r) { totalDaysAll += r.days; totalAchievedAll += r.achievedDays; });
+  const overallRate = totalDaysAll > 0 ? Number(((totalAchievedAll / totalDaysAll) * 100).toFixed(1)) : 0;
+
+  const topPerformer = withData.length ? withData.slice().sort(function (a, b) { return b.total - a.total; })[0] : null;
+  const hallOfFameTop3 = withData.slice().sort(function (a, b) { return b.total - a.total; }).slice(0, 3)
+    .map(function (r) { return { nama: r.name, opsId: r.opsId, agency: r.agency, totalPackedBulanIni: r.total }; });
+
+  const redFlagList = rows.filter(function (r) { return r.isRedFlag; })
+    .map(function (r) { return { nama: r.name, opsId: r.opsId, agency: r.agency, statusKepegawaian: r.status, achievementRatePct: r.achievementRatePct, hariBeruntunDiBawahTarget: r.underStreak }; });
+
+  const agencyMap = {};
+  rows.forEach(function (r) {
+    if (!agencyMap[r.agency]) agencyMap[r.agency] = { agency: r.agency, totalPackedBulanIni: 0, jumlahOperatorSudahAdaData: 0 };
+    agencyMap[r.agency].totalPackedBulanIni += r.total;
+    if (r.days > 0) agencyMap[r.agency].jumlahOperatorSudahAdaData += 1;
+  });
+
+  const rankingLengkap = rows.slice().sort(function (a, b) { return b.total - a.total; }).map(function (r, idx) {
+    const badges = [];
+    if (r.badgeSpeedDemon) badges.push("Speed Demon (rata-rata/hari tertinggi se-DC)");
+    if (r.badgeMostConsistent) badges.push("Most Consistent (100% achievement, min. 3 hari data)");
+    if (r.badgeOnFire) badges.push("On Fire (≥3 hari beruntun di atas target)");
+    if (r.isRedFlag) badges.push("Red Flag / Needs Coaching");
+    return {
+      rankTotalBulanIni: idx + 1,
+      nama: r.name, opsId: r.opsId, agency: r.agency, statusKepegawaian: r.status,
+      targetHarian: PB_ACHIEVEMENT_THRESHOLD[r.status] || PB_ACHIEVEMENT_THRESHOLD["DW On Call"],
+      totalPackedBulanIni: r.total, rataRataPackedPerHari: r.avg,
+      jumlahHariAdaData: r.days, jumlahHariTercapaiTarget: r.achievedDays,
+      achievementRatePct: r.achievementRatePct,
+      packedKemarin_QuickViewD1: r.d1Packed,
+      hariBeruntunDiBawahTarget: r.underStreak, hariBeruntunDiAtasTarget: r.overStreak,
+      growthPct_3HariTerakhirVs3HariSebelumnya: r.growth,
+      badges: badges
+    };
+  });
+
+  return {
+    catatanPentingBuatAI: "Data ini SAMA PERSIS sumber & cara hitung yang dipakai dashboard Performance Bagger " +
+      "(modul monitoring produktivitas packer/bagger harian, sumber import file PDVT harian/mingguan) — " +
+      "JANGAN hitung ulang pakai cara/asumsi sendiri, cukup baca & olah dari dump JSON ini.",
+    bulanBerjalan: range.label,
+    tanggalReferensiKemarin_UntukD1: pbYesterdayLocal(),
+    targetAchievementPerStatusKepegawaian: PB_ACHIEVEMENT_THRESHOLD,
+    ringkasan: {
+      totalOperatorDiRoster: rows.length,
+      operatorYangSudahAdaDataBulanIni: withData.length,
+      achievementRateKeseluruhanPct: overallRate,
+      totalHariDataTercapaiTargetSeDC: totalAchievedAll,
+      totalHariDataKeseluruhanSeDC: totalDaysAll,
+      topPerformerBulanIni: topPerformer ? { nama: topPerformer.name, opsId: topPerformer.opsId, agency: topPerformer.agency, totalPackedBulanIni: topPerformer.total } : null
+    },
+    hallOfFameTop3BulanIni: hallOfFameTop3,
+    agencyBreakdown: Object.values(agencyMap).sort(function (a, b) { return b.totalPackedBulanIni - a.totalPackedBulanIni; }),
+    daftarRedFlag_NeedsCoaching: redFlagList,
+    rankingLengkapSemuaOperatorDiRoster: rankingLengkap,
+    riwayatImportPdvtTerakhir: (importLogs || []).slice(0, 10).map(function (l) {
+      return { namaFile: l.fileName, tanggalCakupan: l.tanggal, jumlahOperator: l.rowCount, importedBy: l.importedBy, importedAt: l.importedAt };
+    })
+  };
+}
+
+// ===== Devisi otomatis (SOC/EHA) modul Inventory Control — di-COPY PERSIS dari EHA_EMAILS/
+// getDevisiForEmail/DEVISI_LABELS di inventory-control.html (config statis, harus disalin manual
+// kalau daftar emailnya berubah, sama kayak roster Performance Bagger di atas). Dipakai sebagai
+// fallback kalau ada Log Usage lama yang belum punya field "devisi" tersimpan (SAMA PERSIS fallback
+// yang dipakai renderUsageDashboard() di dashboard-nya: (l.devisi || getDevisiForEmail(l.createdBy))). =====
+const INV_EHA_EMAILS = [
+  "yoga.parera@spxexpress.com",
+  "yuyun.lestari@spx-external.com",
+  "ugbm_ismu.al-washit@spx-external.com",
+  "rahman.ra@spx-external.com",
+  "febrio.febrio@spx-external.com",
+  "ramadhani@spx-external.com",
+  "septhia.arifiani@spx-external.com"
+];
+function invGetDevisiForEmail(email){
+  const e = (email || "").trim().toLowerCase();
+  return INV_EHA_EMAILS.indexOf(e) !== -1 ? "EHA" : "SOC";
+}
+const INV_DEVISI_LABELS = { SOC: "Sortation Center", EHA: "Exception Handling Area" };
+
+function invTodayStrLocal(){
+  const d = new Date();
+  return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+}
+
+// Ambil data LIVE dari Firebase root "inventoryControl/SOC" — SAMA PERSIS sumber yang dipakai
+// dashboard inventory-control.html (Stock semua, Log Usage 500 terakhir, Asset IT & NCA semua,
+// Audit Log 300 terakhir — limit-nya disamain kayak listener di dashboard aslinya).
+function fetchInventoryControlData(){
+  return new Promise((resolve, reject) => {
+    if (!window.firebase || !firebase.apps || !firebase.apps.length){
+      reject(new Error("Firebase belum ke-init (auth-guard.js gak ketemu / belum login)"));
+      return;
+    }
+    if (!firebase.auth().currentUser){
+      reject(new Error("Belum login — buka file ini lewat app shell / login dulu"));
+      return;
+    }
+    const db = firebase.database();
+    const facilityRoot = FB_INV_ROOT + "/" + INV_FACILITY;
+    Promise.all([
+      db.ref(facilityRoot + "/stock").once("value"),
+      db.ref(facilityRoot + "/usageLogs").limitToLast(500).once("value"),
+      db.ref(facilityRoot + "/assetItNca").once("value"),
+      db.ref(facilityRoot + "/auditLog").limitToLast(300).once("value")
+    ]).then(function (snaps) {
+      resolve({
+        stock: snaps[0].val() || {},
+        usageLogs: snaps[1].val() || {},
+        assetItNca: snaps[2].val() || {},
+        auditLog: snaps[3].val() || {}
+      });
+    }).catch(reject);
+  });
+}
+
+// Ringkasan lengkap modul Inventory Control buat dikirim ke AI — gabungan data MENTAH (Stock, Asset
+// IT & NCA, Audit Log terbaru) SUPAYA Odyssey bisa jawab pertanyaan detail apa aja, PLUS bagian
+// "sudahDihitungFinal" yang angkanya udah dihitung persis sama kayak dashboard (Low Stock + estimasi
+// habis & saran reorder, KPI Highlight Usage hari ini/bulan ini/delta vs bulan lalu, Top Asset
+// Terpakai bulan ini, breakdown pemakaian per Devisi SOC vs EHA) — biar AI GAK ngitung ulang pakai
+// cara/asumsi sendiri buat angka-angka yang emang udah final di dashboard.
+function buildInventoryControlSummary(stock, usageLogsRaw, assetItNca, auditLogRaw){
+  const today = invTodayStrLocal();
+  const monthPrefix = today.slice(0, 7);
+  const now = new Date();
+  const lastMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const lastMonthPrefix = lastMonthDate.getFullYear() + "-" + String(lastMonthDate.getMonth() + 1).padStart(2, "0");
+
+  const usageLogsArr = Object.keys(usageLogsRaw).map(function (id) { return Object.assign({ logId: id }, usageLogsRaw[id]); });
+
+  let todayTotal = 0, monthTotal = 0, lastMonthTotal = 0;
+  const monthAssetTotals = {};
+  const monthDevisiTotals = { SOC: 0, EHA: 0 };
+  usageLogsArr.forEach(function (log) {
+    const d = log.workingDate || "";
+    const q = Number(log.qtyUsed) || 0;
+    if (d === today) todayTotal += q;
+    if (d.slice(0, 7) === monthPrefix) {
+      monthTotal += q;
+      monthAssetTotals[log.assetName || "-"] = (monthAssetTotals[log.assetName || "-"] || 0) + q;
+      const devisi = log.devisi || invGetDevisiForEmail(log.createdBy);
+      monthDevisiTotals[devisi] = (monthDevisiTotals[devisi] || 0) + q;
+    }
+    if (d.slice(0, 7) === lastMonthPrefix) lastMonthTotal += q;
+  });
+
+  let monthDeltaPct = null; // null = gak ada perbandingan (dua-duanya 0)
+  let monthDeltaKeterangan = "Belum ada data bulan ini maupun bulan lalu";
+  if (!(lastMonthTotal === 0 && monthTotal === 0)) {
+    if (lastMonthTotal === 0) {
+      monthDeltaKeterangan = "Baru mulai bulan ini (bulan lalu 0)";
+    } else {
+      monthDeltaPct = Math.round(((monthTotal - lastMonthTotal) / lastMonthTotal) * 100);
+      monthDeltaKeterangan = (monthDeltaPct >= 0 ? "naik " : "turun ") + Math.abs(monthDeltaPct) + "% dari bulan lalu";
+    }
+  }
+
+  const topAssetBulanIni = Object.keys(monthAssetTotals).sort(function (a, b) { return monthAssetTotals[b] - monthAssetTotals[a]; })
+    .map(function (name, idx) { return { rank: idx + 1, nama: name, totalTerpakaiBulanIni: monthAssetTotals[name] }; });
+
+  // Rata-rata pemakaian/hari per Asset, 30 hari terakhir (buat estimasi habis stock) — SAMA PERSIS
+  // logic renderUsageHighlight() di dashboard.
+  const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 29);
+  const cutoffStr = cutoff.getFullYear() + "-" + String(cutoff.getMonth() + 1).padStart(2, "0") + "-" + String(cutoff.getDate()).padStart(2, "0");
+  const last30Totals = {};
+  usageLogsArr.forEach(function (log) {
+    const d = log.workingDate || "";
+    if (d >= cutoffStr && log.assetId) last30Totals[log.assetId] = (last30Totals[log.assetId] || 0) + (Number(log.qtyUsed) || 0);
+  });
+  const avgPerDayByAsset = {};
+  Object.keys(last30Totals).forEach(function (id) { avgPerDayByAsset[id] = last30Totals[id] / 30; });
+
+  const stockArr = Object.keys(stock).map(function (id) { return Object.assign({ assetId: id }, stock[id]); });
+  const lowStockDetail = [];
+  stockArr.forEach(function (a) {
+    const minStock = Number(a.minStock) || 0;
+    const qty = Number(a.qty) || 0;
+    if (minStock > 0 && qty <= minStock) {
+      const avgPerDay = avgPerDayByAsset[a.assetId] || 0;
+      const daysRemaining = qty <= 0 ? 0 : (avgPerDay > 0 ? Math.floor(qty / avgPerDay) : null);
+      const reorderQty = avgPerDay > 0 ? Math.max(0, Math.ceil((avgPerDay * 30) - qty)) : Math.max(0, minStock - qty);
+      lowStockDetail.push({
+        nama: a.name || "-", unit: a.unit || "-", qtySekarang: qty, minStock: minStock,
+        rataRataPemakaianPerHari_30HariTerakhir: Number(avgPerDay.toFixed(2)),
+        estimasiHabisDalamHari: daysRemaining,
+        saranReorderQty: reorderQty
+      });
+    }
+  });
+  lowStockDetail.sort(function (a, b) {
+    const av = a.estimasiHabisDalamHari === null ? Infinity : a.estimasiHabisDalamHari;
+    const bv = b.estimasiHabisDalamHari === null ? Infinity : b.estimasiHabisDalamHari;
+    return av - bv;
+  });
+
+  const stockLengkap = stockArr.map(function (a) {
+    const minStock = Number(a.minStock) || 0;
+    const qty = Number(a.qty) || 0;
+    return {
+      nama: a.name || "-", kategori: a.category || "-", unit: a.unit || "-",
+      qty: qty, minStock: minStock, statusStock: (minStock > 0 && qty <= minStock) ? "Menipis" : "Aman",
+      catatan: a.note || "-", terakhirDiupdate: a.updatedAt ? new Date(a.updatedAt).toISOString() : null,
+      diupdateOleh: a.updatedBy || "-"
+    };
+  }).sort(function (a, b) { return a.nama.localeCompare(b.nama); });
+
+  const assetItNcaLengkap = Object.keys(assetItNca).map(function (id) {
+    const a = assetItNca[id];
+    return {
+      nama: a.name || "-", jenis: a.jenis || "IT", jumlah: Number(a.qty) || 1,
+      noSerialInventaris: a.serial || "-", picPemegang: a.pic || "-", lokasi: a.lokasi || "-",
+      status: a.status || "Aktif", catatan: a.note || "-",
+      terakhirDiupdate: a.updatedAt ? new Date(a.updatedAt).toISOString() : null, diupdateOleh: a.updatedBy || "-"
+    };
+  }).sort(function (a, b) { return a.nama.localeCompare(b.nama); });
+
+  const auditLogTerbaru = Object.keys(auditLogRaw).map(function (id) { return auditLogRaw[id]; })
+    .sort(function (a, b) { return (b.changedAt || 0) - (a.changedAt || 0); })
+    .slice(0, 100)
+    .map(function (r) {
+      return { waktu: r.changedAt ? new Date(r.changedAt).toISOString() : null, modul: r.module || "-", aksi: r.action || "-", namaItem: r.itemName || "-", detail: r.detail || "-", diubahOleh: r.changedBy || "-" };
+    });
+
+  return {
+    catatanPentingBuatAI: "Modul Inventory Control ini punya 5 sub-menu: (1) Log Activity Usage — input " +
+      "pemakaian asset harian per Devisi, (2) Highlight Usage — dashboard KPI & leaderboard pemakaian, " +
+      "(3) Stock — database jumlah stock consumable & Min Stock, (4) Asset IT & NCA — database aset non-consumable " +
+      "(laptop, meja, dst) per unit dengan PIC/lokasi/status, (5) Audit Log — riwayat semua perubahan. Devisi SOC " +
+      "(Sortation Center) & EHA (Exception Handling Area) itu SATU dashboard gabungan, pembedanya cuma field " +
+      "\"devisi\" di tiap Log Usage (otomatis dari email yang input) — BUKAN dua modul terpisah. Bagian " +
+      "\"sudahDihitungFinal\" di bawah angkanya SUDAH final dihitung persis sama kayak dashboard — JANGAN hitung " +
+      "ulang pakai cara/asumsi sendiri, cukup baca & olah dari situ. Bagian lain (stockLengkap, assetItNcaLengkap, " +
+      "auditLogTerbaru) itu data MENTAH lengkap buat kamu olah sendiri kalau user nanya detail spesifik.",
+    tanggalHariIni: today,
+    devisiInfo: INV_DEVISI_LABELS,
+    sudahDihitungFinal: {
+      highlightUsageKpi: {
+        totalTerpakaiHariIni: todayTotal,
+        totalTerpakaiBulanIni: monthTotal,
+        totalTerpakaiBulanLalu: lastMonthTotal,
+        deltaBulanIniVsBulanLaluPct: monthDeltaPct,
+        deltaKeterangan: monthDeltaKeterangan,
+        jumlahAssetTersentuhBulanIni: Object.keys(monthAssetTotals).length,
+        jumlahAssetStockMenipis: lowStockDetail.length
+      },
+      breakdownPemakaianBulanIniPerDevisi: {
+        SOC_SortationCenter: monthDevisiTotals.SOC || 0,
+        EHA_ExceptionHandlingArea: monthDevisiTotals.EHA || 0
+      },
+      topAssetTerpakaiBulanIni: topAssetBulanIni,
+      lowStockDetailDenganEstimasiHabisDanSaranReorder: lowStockDetail
+    },
+    stockLengkap: stockLengkap,
+    assetItNcaLengkap: assetItNcaLengkap,
+    auditLogTerbaru_Max100: auditLogTerbaru
+  };
 }
 
 // ===== Replikasi persis logic status di inbound.html =====
@@ -406,6 +1450,55 @@ function normalizeTrip(t){
   };
 }
 
+// ===== Deteksi "Convoy" (fitur baru) =====
+// Definisi convoy: 2 (atau lebih) unit yang ATA Destination-nya berjarak
+// DI BAWAH 40 menit satu sama lain, di tanggal yang sama. Cara hitungnya:
+// per tanggal, urutin trip yang UDAH punya ataDest dari yang paling pagi,
+// lalu "rantai"-in trip yang jaraknya ke trip sebelumnya < 40 menit jadi
+// satu grup. Grup yang cuma isi 1 trip (gak ada temen deketnya) dibuang —
+// itu bukan convoy. Dihitung SEKALI di sini (JS), bukan diserahin ke AI,
+// biar hasilnya konsisten & gak meleset kayak kalau AI disuruh
+// ngira-ngira selisih waktu sendiri dari puluhan trip.
+function computeConvoyGroups(trips){
+  const byDate = {};
+  trips.forEach(function (t){
+    if (!t.ataDest || !t.tanggal) return; // convoy cuma valid buat trip yang UDAH sampai
+    const ataMs = new Date(t.ataDest).getTime();
+    if (isNaN(ataMs)) return;
+    (byDate[t.tanggal] = byDate[t.tanggal] || []).push(Object.assign({}, t, { ataMs: ataMs }));
+  });
+
+  const CONVOY_WINDOW_MS = 40 * 60 * 1000; // di bawah 40 menit
+  const groups = [];
+  Object.keys(byDate).forEach(function (tanggal){
+    const arr = byDate[tanggal].sort(function (a, b){ return a.ataMs - b.ataMs; });
+    let current = [];
+    arr.forEach(function (t){
+      if (current.length && (t.ataMs - current[current.length - 1].ataMs) >= CONVOY_WINDOW_MS){
+        if (current.length >= 2) groups.push(current);
+        current = [];
+      }
+      current.push(t);
+    });
+    if (current.length >= 2) groups.push(current);
+  });
+
+  return groups.map(function (g, idx){
+    return {
+      convoyKe: idx + 1,
+      tanggal: g[0].tanggal,
+      jumlahUnit: g.length,
+      rentangWaktuMenit: Math.round((g[g.length - 1].ataMs - g[0].ataMs) / 60000),
+      units: g.map(function (t){
+        return {
+          tripNum: t.tripNum, vendorName: t.vendorName, driver: t.driver,
+          qtyParcelVal: t.qtyParcelVal, staDest: t.staDest, ataDest: t.ataDest
+        };
+      })
+    };
+  });
+}
+
 async function loadData(){
   // Auto: kalau session login (auth-guard.js) udah kevalidasi, langsung sync live
   // dari Firebase. Kalau belum login / firebase belum siap, fallback ke data contoh.
@@ -421,6 +1514,74 @@ async function loadData(){
   }catch(e){
     console.error(e);
     document.getElementById("statusLine").textContent = "gagal ambil data live: " + e.message;
+  }
+
+  // Data Rest Time & Asset Usage (prDcMonitoring) — cuma ada versi live, gak
+  // ada mock, karena kalau lagi gak login/offline AI-nya emang WAJIB ngaku
+  // terus terang gak ada data (bukan ngarang), sama kayak mode DW/Queue Report.
+  if (isLive){
+    try{
+      const mon = await fetchRestAssetData();
+      currentRestLogs = mon.logs;
+      currentAssetLogs = mon.assetLogs;
+      monMasterKaryawan = mon.master;
+      monPdaStationMap = mon.stationMap;
+    }catch(e){
+      console.error("gagal ambil data Rest Time/Asset Usage:", e);
+      currentRestLogs = []; currentAssetLogs = []; monMasterKaryawan = {}; monPdaStationMap = {};
+    }
+  } else {
+    currentRestLogs = []; currentAssetLogs = []; monMasterKaryawan = {}; monPdaStationMap = {};
+  }
+
+  // Data modul OUTBOUND (Aging & Packer Backlog + Occupancy & Shift) — prDcOutboundMonitoring.
+  // Sama kayak Rest Time/Asset Usage: cuma ada versi live, gak ada mock — kalau lagi gak login/offline
+  // AI-nya WAJIB ngaku terus terang gak ada data, bukan ngarang.
+  if (isLive){
+    try{
+      const ob = await fetchOutboundData();
+      currentOutboundRaw = ob.rows;
+      currentOutboundMeta = ob.meta;
+    }catch(e){
+      console.error("gagal ambil data Outbound (Aging/Occupancy/Shift):", e);
+      currentOutboundRaw = []; currentOutboundMeta = null;
+    }
+  } else {
+    currentOutboundRaw = []; currentOutboundMeta = null;
+  }
+
+  // Data modul PERFORMANCE BAGGER (produktivitas packer/bagger harian) — prDcPerformanceBagger.
+  // Sama kayak Outbound/Rest Time/Asset Usage: cuma ada versi live, gak ada mock — kalau lagi gak
+  // login/offline AI-nya WAJIB ngaku terus terang gak ada data, bukan ngarang.
+  if (isLive){
+    try{
+      const pb = await fetchPerformanceBaggerData();
+      currentPbDailyRecords = pb.dailyRecords;
+      currentPbImportLogs = pb.importLogs;
+    }catch(e){
+      console.error("gagal ambil data Performance Bagger:", e);
+      currentPbDailyRecords = {}; currentPbImportLogs = [];
+    }
+  } else {
+    currentPbDailyRecords = {}; currentPbImportLogs = [];
+  }
+
+  // Data modul INVENTORY CONTROL (Stock, Log Activity Usage, Asset IT & NCA, Audit Log) —
+  // inventoryControl/SOC. Sama kayak modul lain: cuma ada versi live, gak ada mock — kalau lagi gak
+  // login/offline AI-nya WAJIB ngaku terus terang gak ada data, bukan ngarang.
+  if (isLive){
+    try{
+      const inv = await fetchInventoryControlData();
+      currentInvStock = inv.stock;
+      currentInvUsageLogs = inv.usageLogs;
+      currentInvAssetItNca = inv.assetItNca;
+      currentInvAuditLog = inv.auditLog;
+    }catch(e){
+      console.error("gagal ambil data Inventory Control:", e);
+      currentInvStock = {}; currentInvUsageLogs = {}; currentInvAssetItNca = {}; currentInvAuditLog = {};
+    }
+  } else {
+    currentInvStock = {}; currentInvUsageLogs = {}; currentInvAssetItNca = {}; currentInvAuditLog = {};
   }
 }
 
@@ -519,7 +1680,65 @@ function friendlyModelName(rawId){
   return ODYSSEY_MODEL_NAMES[rawId] || "Odyssey";
 }
 
-function addMessage(role, text, attachUnits, imageDataUrl, modelLabel){
+// Bikin bunyi "blip" halus pakai oscillator, bukan file audio — biar ringan
+// & gak perlu nge-load asset tambahan. "sent" nadanya naik dikit (lebih
+// "aktif"), "received" nadanya turun pelan (lebih "lembut"). Volume sengaja
+// dijaga kecil (gain rendah) + envelope cepet biar kesannya "halus", gak
+// ganggu kayak notifikasi HP.
+function ensureAudioCtx(){
+  if (!odysseyAudioCtx){
+    try{ odysseyAudioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+    catch(e){ odysseyAudioCtx = null; }
+  }
+  return odysseyAudioCtx;
+}
+function playChatSound(kind){
+  if (!soundEnabled) return;
+  const ctx = ensureAudioCtx();
+  if (!ctx) return;
+  try{
+    if (ctx.state === "suspended") ctx.resume();
+    const now = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.type = "sine";
+    if (kind === "sent"){
+      osc.frequency.setValueAtTime(720, now);
+      osc.frequency.exponentialRampToValueAtTime(940, now + 0.07);
+      gain.gain.setValueAtTime(0.0001, now);
+      gain.gain.exponentialRampToValueAtTime(0.06, now + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.12);
+      osc.start(now); osc.stop(now + 0.13);
+    } else {
+      osc.frequency.setValueAtTime(560, now);
+      osc.frequency.exponentialRampToValueAtTime(430, now + 0.15);
+      gain.gain.setValueAtTime(0.0001, now);
+      gain.gain.exponentialRampToValueAtTime(0.05, now + 0.015);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.22);
+      osc.start(now); osc.stop(now + 0.23);
+    }
+  }catch(e){ /* browser kadang nge-block audio sebelum ada interaksi user — abaikan aja */ }
+}
+function applySoundToggleIcon(){
+  const btn = document.getElementById("soundToggleBtn");
+  if (!btn) return;
+  btn.textContent = soundEnabled ? "🔊" : "🔇";
+  btn.title = soundEnabled ? "Sound efek: nyala (klik buat mute)" : "Sound efek: mute (klik buat nyalain)";
+}
+document.getElementById("soundToggleBtn").addEventListener("click", () => {
+  soundEnabled = !soundEnabled;
+  localStorage.setItem("odysseySoundEnabled", soundEnabled ? "1" : "0");
+  applySoundToggleIcon();
+});
+applySoundToggleIcon();
+
+// param "instant": true kalau ini balesan LAMA yang lagi dimuat ulang dari
+// histori Firebase (klik sesi di sidebar) — langsung tampil penuh, gak perlu
+// efek ngetik typewriter lagi kayak balesan yang baru dateng.
+function addMessage(role, text, attachUnits, imageDataUrl, modelLabel, instant){
+  playChatSound(role === "user" ? "sent" : "received");
   const log = document.getElementById("chatLog");
   const wrap = document.createElement("div");
   wrap.className = "msg " + (role==="user" ? "user" : "agent");
@@ -579,9 +1798,14 @@ function addMessage(role, text, attachUnits, imageDataUrl, modelLabel){
   wrap.appendChild(row);
 
   // Balasan agent: ngetik dulu (typewriter) baru di-render jadi markdown +
-  // syntax highlight begitu kelar.
+  // syntax highlight begitu kelar. Kalau instant=true (lagi muat ulang sesi
+  // lama dari sidebar riwayat), langsung render penuh tanpa animasi ngetik.
   if (role !== "user" && bubble){
-    typewriterInto(bubble, text, () => renderMarkdownInto(bubble, text));
+    if (instant){
+      renderMarkdownInto(bubble, text);
+    } else {
+      typewriterInto(bubble, text, () => renderMarkdownInto(bubble, text));
+    }
   }
 
   if (role !== "user" && text && text.trim()){
@@ -659,6 +1883,7 @@ document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeLight
 // ===== Quick-reply shortcut chips =====
 const QUICK_REPLIES = [
   "Ada unit Late Arrival hari ini?",
+  "Ada unit Convoy hari ini?",
   "Rekap semua trip hari ini",
   "Trip mana aja yang masih In Transit?",
   "Vendor mana yang paling sering telat?"
@@ -680,13 +1905,189 @@ function addQuickReplies(){
 }
 
 // ===== New Chat / reset percakapan =====
-document.getElementById("newChatBtn").addEventListener("click", () => {
+function startNewChat(){
   document.getElementById("chatLog").innerHTML = "";
   chatHistory = [];
+  currentSessionId = null; // sesi baru — belum ada di Firebase sampe pesan pertama kekirim
   clearPendingImage();
   addMessage("agent", "Chat baru dimulai bro. Ada yang bisa gua bantu soal operasional Palangka Raya DC?");
   addQuickReplies();
+  refreshSessionsList(); // ngilangin highlight "active" dari sesi lama di sidebar
+}
+document.getElementById("newChatBtn").addEventListener("click", startNewChat);
+document.getElementById("newSessionBtn").addEventListener("click", startNewChat);
+
+// ===== Toggle sidebar riwayat chat =====
+document.getElementById("toggleSidebarBtn").addEventListener("click", () => {
+  const sidebar = document.getElementById("sessionsSidebar");
+  const wasHidden = sidebar.classList.contains("hidden");
+  sidebar.classList.toggle("hidden");
+  if (wasHidden) refreshSessionsList(); // baru di-fetch pas dibuka, gak perlu polling terus-terusan
 });
+document.getElementById("closeSidebarBtn").addEventListener("click", () => {
+  document.getElementById("sessionsSidebar").classList.add("hidden");
+});
+
+// ===== Popover Setting (ukuran font & lebar chat) =====
+document.getElementById("settingsBtn").addEventListener("click", (e) => {
+  e.stopPropagation();
+  document.getElementById("settingsPopover").classList.toggle("show");
+});
+document.addEventListener("click", (e) => {
+  const pop = document.getElementById("settingsPopover");
+  if (pop.classList.contains("show") && !pop.contains(e.target) && e.target.id !== "settingsBtn"){
+    pop.classList.remove("show");
+  }
+});
+
+// --chat-font-size & --chat-msg-max-width diaplikasiin ke :root biar kepake
+// sama semua bubble pesan (lama & baru) sekaligus, gak perlu loop ke tiap
+// elemen .msg yang udah kerender. Pilihan disimpen ke localStorage per-browser.
+const FONT_SIZE_MAP = { small: "13px", normal: "14px", large: "16px" };
+const CHAT_WIDTH_MAP = { narrow: "min(58%, 520px)", normal: "min(78%, 720px)", wide: "min(94%, 960px)" };
+function applyFontSize(key){
+  document.documentElement.style.setProperty("--chat-font-size", FONT_SIZE_MAP[key] || FONT_SIZE_MAP.normal);
+}
+function applyChatWidth(key){
+  document.documentElement.style.setProperty("--chat-msg-max-width", CHAT_WIDTH_MAP[key] || CHAT_WIDTH_MAP.normal);
+}
+(function initDisplaySettings(){
+  const savedFont = localStorage.getItem("odysseyFontSize") || "normal";
+  const savedWidth = localStorage.getItem("odysseyChatWidth") || "normal";
+  document.getElementById("fontSizeSelect").value = savedFont;
+  document.getElementById("chatWidthSelect").value = savedWidth;
+  applyFontSize(savedFont);
+  applyChatWidth(savedWidth);
+})();
+document.getElementById("fontSizeSelect").addEventListener("change", (e) => {
+  localStorage.setItem("odysseyFontSize", e.target.value);
+  applyFontSize(e.target.value);
+});
+document.getElementById("chatWidthSelect").addEventListener("change", (e) => {
+  localStorage.setItem("odysseyChatWidth", e.target.value);
+  applyChatWidth(e.target.value);
+});
+
+// ===== Simpen & muat histori chat per-user ke/dari Firebase =====
+// (bukan cuma di memory browser kayak sebelumnya — refresh/ganti device,
+// histori tetep ada selama masih login akun yang sama & masih online).
+function getCurrentUid(){
+  try{
+    const u = window.firebase && firebase.auth && firebase.auth().currentUser;
+    return u ? u.uid : null;
+  }catch(e){ return null; }
+}
+function newSessionId(){
+  return "sess_" + Date.now() + "_" + Math.random().toString(36).slice(2, 8);
+}
+// Jangan simpen base64 gambar mentah ke Firebase (bisa berat banget & bikin
+// database bengkak) — pas nyimpen histori, konten gambar diganti placeholder
+// teks aja. Gambar tetep kepake normal buat sesi yang lagi jalan (di memory).
+function sanitizeMessagesForSave(history){
+  return history.map(function(m){
+    if (Array.isArray(m.content)){
+      const textPart = m.content.find(function(p){ return p && p.type === "text"; });
+      return { role: m.role, content: (textPart && textPart.text) || "(kirim gambar)" };
+    }
+    return { role: m.role, content: String(m.content == null ? "" : m.content) };
+  });
+}
+function scheduleSaveSession(){
+  if (!firebaseReady) return; // mode mock/offline: histori cuma kesimpen di memory browser aja
+  if (!chatHistory.length) return;
+  clearTimeout(saveSessionTimer);
+  saveSessionTimer = setTimeout(saveSessionNow, 900); // debounce biar gak nulis tiap detik
+}
+function saveSessionNow(){
+  const uid = getCurrentUid();
+  if (!uid || !window.firebase || !firebase.database) return;
+  if (!currentSessionId) currentSessionId = newSessionId();
+  const firstUserMsg = chatHistory.find(function(m){ return m.role === "user"; });
+  let title = "Chat baru";
+  if (firstUserMsg){
+    const raw = Array.isArray(firstUserMsg.content)
+      ? ((firstUserMsg.content.find(function(p){ return p && p.type === "text"; }) || {}).text || "Kirim gambar")
+      : String(firstUserMsg.content || "");
+    title = raw.trim().slice(0, 60) || "Chat baru";
+  }
+  const payload = {
+    title: title,
+    updatedAt: firebase.database.ServerValue.TIMESTAMP,
+    messages: sanitizeMessagesForSave(chatHistory)
+  };
+  firebase.database().ref(ODYSSEY_CHAT_ROOT + "/" + uid + "/" + currentSessionId).set(payload)
+    .then(function(){ refreshSessionsList(); })
+    .catch(function(e){ console.warn("Gagal simpen histori chat:", e.message); });
+}
+function refreshSessionsList(){
+  const listEl = document.getElementById("sessionsList");
+  const uid = getCurrentUid();
+  if (!uid || !window.firebase || !firebase.database){
+    listEl.innerHTML = '<div class="sessions-empty">Riwayat cuma kesimpen kalau lagi login &amp; online bro.</div>';
+    return;
+  }
+  firebase.database().ref(ODYSSEY_CHAT_ROOT + "/" + uid).once("value")
+    .then(function(snap){
+      const items = [];
+      snap.forEach(function(child){
+        const v = child.val() || {};
+        items.push({ id: child.key, title: v.title || "Chat", updatedAt: v.updatedAt || 0 });
+      });
+      items.sort(function(a, b){ return b.updatedAt - a.updatedAt; });
+      renderSessionsList(items);
+    })
+    .catch(function(e){
+      listEl.innerHTML = '<div class="sessions-empty">Gagal muat riwayat: ' + e.message + '</div>';
+    });
+}
+function renderSessionsList(items){
+  const listEl = document.getElementById("sessionsList");
+  listEl.innerHTML = "";
+  if (!items.length){
+    listEl.innerHTML = '<div class="sessions-empty">Belum ada riwayat chat.</div>';
+    return;
+  }
+  items.forEach(function(it){
+    const el = document.createElement("button");
+    el.type = "button";
+    el.className = "session-item" + (it.id === currentSessionId ? " active" : "");
+    const titleEl = document.createElement("span");
+    titleEl.className = "session-title";
+    titleEl.textContent = it.title;
+    const metaEl = document.createElement("span");
+    metaEl.className = "session-meta";
+    if (it.updatedAt){
+      const d = new Date(it.updatedAt);
+      const pad = function(n){ return String(n).padStart(2, "0"); };
+      metaEl.textContent = pad(d.getDate()) + "/" + pad(d.getMonth() + 1) + " " + pad(d.getHours()) + ":" + pad(d.getMinutes());
+    }
+    el.appendChild(titleEl);
+    el.appendChild(metaEl);
+    el.addEventListener("click", function(){ loadSession(it.id); });
+    listEl.appendChild(el);
+  });
+}
+function loadSession(sessionId){
+  const uid = getCurrentUid();
+  if (!uid || !window.firebase || !firebase.database) return;
+  firebase.database().ref(ODYSSEY_CHAT_ROOT + "/" + uid + "/" + sessionId).once("value")
+    .then(function(snap){
+      const v = snap.val();
+      if (!v) return;
+      currentSessionId = sessionId;
+      const msgs = Array.isArray(v.messages) ? v.messages : [];
+      document.getElementById("chatLog").innerHTML = "";
+      chatHistory = [];
+      clearPendingImage();
+      msgs.forEach(function(m){
+        const role = m.role === "user" ? "user" : "assistant";
+        chatHistory.push({ role: role, content: m.content });
+        addMessage(role === "user" ? "user" : "agent", m.content, null, null, null, true);
+      });
+      refreshSessionsList();
+    })
+    .catch(function(e){ console.warn("Gagal muat sesi:", e.message); });
+}
 
 // Ubah pesan error teknis dari API jadi kalimat simpel yang enak dibaca user
 // biasa, bukan mentahan pesan Gemini/HTTP yang penuh istilah teknis.
@@ -747,16 +2148,18 @@ async function askAgent(question, imageDataUrl){
       ]
     : question;
   chatHistory.push({role:"user", content: userContent, hasImage: !!imageDataUrl});
+  scheduleSaveSession();
   addTyping();
 
   const lateCount = currentTrips.filter(t => t.status === "Late Arrival").length;
+  const convoyGroups = computeConvoyGroups(currentTrips);
 
   // Deteksi simpel: pertanyaan ini soal DATA TRIP (report/status/vendor/dll) atau
   // cuma obrolan santai yang gak butuh data? Kalau cuma basa-basi ("bro", "makasih",
   // "lu tau gua?"), JANGAN kirim seluruh dump data + template Report yang berat —
   // itu yang bikin AI keder/salah format DAN boros token (gampang kepentok limit).
   // Data & template berat cuma dikirim kalau emang relevan.
-  const dataKeywords = /report|laporan|trip|late|telat|awal|early|unit|vendor|driver|status|hari ini|kemarin|tanggal|durasi|jadwal|\bsta\b|\beta\b|\bata\b|\bstd\b|\blt[\s-]?\d|nomor|plat|parcel|qty|data|dc\b|banjarmasin|sampit|kapuas|pangkalan/i;
+  const dataKeywords = /report|laporan|trip|late|telat|awal|early|convoy|beriringan|iring|unit|vendor|driver|status|hari ini|kemarin|tanggal|durasi|jadwal|\bsta\b|\beta\b|\bata\b|\bstd\b|\blt[\s-]?\d|nomor|plat|parcel|qty|data|dc\b|banjarmasin|sampit|kapuas|pangkalan/i;
   // Report kedua: DW (Daily Worker) Fulfillment — beda topik dari trip Inbound,
   // datanya BUKAN dari currentTrips (Firebase) tapi dari GAMBAR tabel jadwal DW
   // yang di-paste user (screenshot spreadsheet shift/permintaan/kehadiran).
@@ -775,7 +2178,36 @@ async function askAgent(question, imageDataUrl){
     queueKeywords.test(question || "") ||
     (!!imageDataUrl && !(question || "").trim())
   );
-  const isDataQuery = isDwReport || isQueueReport || dataKeywords.test(question || "") || !!imageDataUrl;
+  // Topik keempat: REST TIME & ASSET USAGE MONITORING — beda modul lagi dari
+  // 3 topik di atas (trip Inbound / DW Fulfillment / Antrian Inbound). Datanya
+  // dari Firebase live (currentRestLogs, currentAssetLogs, monMasterKaryawan,
+  // monPdaStationMap), BUKAN dari gambar. Kata kunci sengaja dibikin luas biar
+  // nangkep istilah opsional yang biasa dipakai Shift Lead sehari-hari di
+  // lapangan (istirahat, PDA, pinjam/kembali, check in, dst).
+  const restAssetKeywords = /rest\s*time|istirahat|\bbreak\s*(in|out)?\b|check\s*-?\s*in\b|check\s*-?\s*out\b|\bpda\b|asset usage|\basset\b|serial number|\bsn\b|pinjam|kembali|ops\s*id|opsid|karyawan|operator|\bstation\b|\bidle\b|overtime|kelamaan|kelamaan istirahat|terkunci|\block\b|\bcycle\b|agency|departemen|\bdept\b/i;
+  const isRestAssetQuery = !isDwReport && !isQueueReport && restAssetKeywords.test(question || "");
+  // Topik kelima: MODUL OUTBOUND — Aging & Packer Backlog + Occupancy & Shift Departure. Beda lagi
+  // dari 4 topik di atas (trip Inbound / DW Fulfillment / Antrian Inbound / Rest Time & Asset Usage).
+  // Datanya dari Firebase live (currentOutboundRaw, diringkas lewat buildOutboundSummary()), SAMA
+  // PERSIS sumber & logic hitung yang dipakai dashboard outbound.html. Kata kunci sengaja dibikin
+  // luas biar nangkep istilah sehari-hari modul ini (aging, backlog, packer, staging, occupancy,
+  // shift keberangkatan, linehaul, rute/hub, D0-D6+, bulky/HV/liquid, dst).
+  // Topik keenam: MODUL PERFORMANCE BAGGER — beda lagi dari 5 topik di atas, ini soal produktivitas
+  // PACKING HARIAN per operator (bukan soal parcel/aging di staging kayak modul Outbound). Datanya
+  // dari Firebase live (currentPbDailyRecords, currentPbImportLogs), diringkas lewat
+  // buildPerformanceBaggerSummary(). Dicek SEBELUM kata kunci Outbound biar kata "packer" polos gak
+  // kebajak ke modul Outbound (yang istilahnya lebih spesifik: "packer leaderboard"/"packer backlog").
+  const performanceBaggerKeywords = /performance bagger|\bbagger\b|\bpdvt\b|\bopsid\b|ops\s*id|hall of fame|achievement rate|red flag|needs coaching|butuh coaching|speed demon|\bon fire\b|most consistent|dedicated operator|dw reguler|dw on call|quick view|\bd\+1\b|import roster|rapor pdf|performance slip|target packing|packing target|achievement.*(target|packing)|produktivitas (packer|bagger|packing)/i;
+  const isPerformanceBaggerQuery = !isDwReport && !isQueueReport && !isRestAssetQuery && performanceBaggerKeywords.test(question || "");
+  // Topik ketujuh: MODUL INVENTORY CONTROL — soal database Stock (barang consumable), Asset IT & NCA
+  // (non-consumable per unit), Log Activity Usage/Highlight Usage (pemakaian harian per Devisi SOC/EHA),
+  // dan Audit Log. Beda total dari 6 topik di atas. Dicek SEBELUM keyword Outbound & Performance Bagger
+  // biar kata "stock"/"asset" di sini gak ketuker sama istilah modul lain.
+  const inventoryControlKeywords = /inventory control|\binventaris\b|\bstock\b|\bstok\b|min\s*stock|stock menipis|barang menipis|barang habis|\breorder\b|\bpic\b|no\.?\s*serial|nomor serial|asset it\b|\bnca\b|non.?consumable|audit log|riwayat pemakaian|riwayat mutasi|log activity|highlight usage|top asset|qty terpakai|devisi (soc|eha)|\bsoc\b|\beha\b|sortation center|exception handling|kondisi asset|status asset|jumlah asset|kategori asset/i;
+  const isInventoryControlQuery = !isDwReport && !isQueueReport && !isRestAssetQuery && inventoryControlKeywords.test(question || "");
+  const outboundKeywords = /\baging\b|backlog|\bpacker\b|packing method|\bstaging\b|occupancy|okupansi|kapasitas (gudang|staging|dc)|shift departure|keberangkatan|\blinehaul\b|line ?haul|\bd-?day\b|\bd[0-6]\b|>\s*d-?6|\bbulky\b|high value|\bhv\b|\bliquid\b|inner island|outer island|\bhub\b|\brute\b|breakdown volume|priority action|root cause|receiver name|destinasi|leaderboard|jadwal keberangkatan|slot linehaul|\bto number\b|\btransfer order\b/i;
+  const isOutboundQuery = !isDwReport && !isQueueReport && !isRestAssetQuery && !isPerformanceBaggerQuery && !isInventoryControlQuery && outboundKeywords.test(question || "");
+  const isDataQuery = isDwReport || isQueueReport || isRestAssetQuery || isPerformanceBaggerQuery || isInventoryControlQuery || isOutboundQuery || dataKeywords.test(question || "") || !!imageDataUrl;
 
   const basePersona = `Kamu Odyssey — AI Agent yang awalnya dibikin buat bantu Shift Lead Sortation Center
 mantau trip Inbound (Line Haul dari origin ke DC), TAPI wawasan kamu gak kebatas itu doang. Kamu punya
@@ -931,6 +2363,253 @@ dari gambar, tapi kurungnya tetap dipertahankan persis kayak contoh: "(N)Antri",
 "(N)Done", "(N)Incoming".
 
 ${jsonFormatRule}`;
+  } else if (isRestAssetQuery){
+    // Mode REST TIME & ASSET USAGE MONITORING — topik & sumber data BEDA lagi
+    // dari 3 mode di atas (trip Inbound / DW Fulfillment / Antrian Inbound).
+    // Datanya LIVE dari Firebase node "prDcMonitoring" (SAMA PERSIS sumber
+    // yang dipakai modul rest-time.html), bukan dari gambar yang di-paste user.
+    const monWindowStart = getMonWindowStartDate();
+    systemPrompt = `${basePersona}
+
+Pertanyaan kali ini soal MODUL REST TIME & ASSET USAGE MONITORING (bukan trip Inbound, bukan DW
+Fulfillment, bukan Antrian Inbound). Kalau di riwayat percakapan sebelumnya ada pembahasan topik lain,
+ABAIKAN TOTAL itu buat jawaban kali ini — satu-satunya sumber kebenaran buat topik ini adalah 4 dump
+JSON di bawah (SELALU paling baru/fresh tiap kamu jawab).
+
+PENTING soal cakupan data: "logRestTime" & "logAssetUsage" di bawah CUMA berisi ${MON_WINDOW_DAYS} hari
+terakhir (mulai tanggal ${monWindowStart}), SAMA PERSIS kayak window yang ditampilin dashboard modul ini
+sendiri — kalau user nanya histori di LUAR rentang itu, bilang terus terang datanya di luar jangkauan
+kamu, JANGAN ngarang. "masterKaryawan" & "pdaStationMap" itu data referensi PENUH (gak dibatasi tanggal).
+
+STRUKTUR DATA:
+1. "logRestTime" — array log Rest Time, tiap item: {opsId, breakType, timestamp, workingDate, cycleNum}.
+   breakType SATU-SATUNYA dari 4 nilai ini, ngikutin pola SIKLUS per opsId berdasarkan cycleNum (siklus
+   4 angka berulang: cycleNum 1="Check In", 2="Break Out", 3="Break In", 4="Selesai", lalu balik lagi ke
+   1="Check In" buat sesi berikutnya di hari yang sama/berbeda). "timestamp" format "YYYY-MM-DD HH:mm:ss"
+   (WIB, waktu lokal, JANGAN dikonversi timezone lagi). "workingDate" = tanggal kerja (format YYYY-MM-DD,
+   bisa beda dari tanggal kalender kalau shift-nya lewat tengah malam).
+2. "logAssetUsage" — array log Asset Usage (PDA), tiap item: {opsId, serialNumber, last5Sn, action,
+   timestamp, workingDate, picEmail}. "action" cuma 2 nilai: "Pinjam PDA" atau "Kembali PDA". "picEmail"
+   = email petugas yang input data ini (bukan email peminjam PDA).
+3. "masterKaryawan" — object {opsId: {name, dept, agency}}, buat translate opsId ke nama/departemen/
+   agency orangnya. Kalau opsId di log gak ketemu di sini, bilang "opsId (tanpa nama)".
+4. "pdaStationMap" — object {serialNumber: namaStation}, namaStation salah satu dari: "Inbound",
+   "Sec Sort", "Bulky", "Assisted Sorting", "Outbound", "Runner". Buat tau PDA tertentu biasa dipakai di
+   station mana.
+
+ATURAN BISNIS modul ini (buat konteks jawab pertanyaan, BUKAN buat kamu hitung ulang status yang udah
+final di data):
+- Satu opsId WAJIB "Check In" dulu (Rest Time) sebelum boleh "Pinjam PDA" (Asset Usage).
+- Satu Serial Number PDA cuma boleh dipinjam SATU orang dalam satu waktu — harus "Kembali PDA" dulu
+  sebelum SN yang sama dipinjam orang lain (sistem lock "1 PDA = 1 Orang").
+- Dalam satu sesi shift (dari Check In sampai belum "Kembali PDA" final), operator yang sama WAJIB
+  pinjam PDA dengan SN yang SAMA kalau pinjam lagi (misal abis sesi istirahat kedua).
+- Alert "kelamaan istirahat" dianggap terjadi kalau selisih waktu SEKARANG (atau waktu "Break In"
+  berikutnya) terhadap waktu "Break Out" LEBIH DARI 60 menit — hitung ini dari pasangan breakType
+  "Break Out" -> "Break In" berikutnya (opsId & cycleNum berurutan) di "logRestTime" kalau user nanya
+  soal ini.
+- "Idle" (buat Asset Usage) = SN PDA yang terdaftar di "pdaStationMap" tapi aksi TERAKHIRnya bukan
+  "Pinjam PDA" yang masih aktif (sudah "Kembali PDA" atau belum pernah dipinjam sama sekali).
+
+Format WAJIB buat semua jam/tanggal yang kamu tulis: "DD/MM HH:mm WIB" (contoh: "05/09 07:30 WIB"),
+ambil dari jam lokal yang ada di field "timestamp" (jangan tulis format ISO/teknis mentah-mentah).
+
+logRestTime (JSON, total ${currentRestLogs.length} entri):
+${JSON.stringify(currentRestLogs, null, 2)}
+
+logAssetUsage (JSON, total ${currentAssetLogs.length} entri):
+${JSON.stringify(currentAssetLogs, null, 2)}
+
+masterKaryawan (JSON):
+${JSON.stringify(monMasterKaryawan, null, 2)}
+
+pdaStationMap (JSON):
+${JSON.stringify(monPdaStationMap, null, 2)}
+
+Kalau ketiga/keempat data di atas kosong semua ("[]"/"{}"), berarti Odyssey gagal narik data live (belum
+login / Firebase belum siap) — bilang terus terang ke user, JANGAN ngarang jawaban.
+
+${jsonFormatRule}
+
+Contoh buat jawaban singkat, "replyLines" tetap array, misal: {"replyLines": ["Si Budi (opsId BUD01)
+lagi Break Out dari jam 14:05 bro, udah lewat 20 menit, belum overtime."], "attachedUnits": []}`;
+  } else if (isOutboundQuery){
+    // Mode MODUL OUTBOUND — Aging & Packer Backlog + Occupancy & Shift Departure. Beda topik & beda
+    // sumber data dari 4 mode lain di atas. Data LIVE dari Firebase root "prDcOutboundMonitoring"
+    // (SAMA PERSIS sumber yang dipakai dashboard outbound.html), diringkas lewat buildOutboundSummary()
+    // biar gak ngirim ribuan baris parcel mentah ke AI — ringkasannya udah mencakup semua sudut
+    // pandang yang ada di dashboard: ringkasan eksekutif, breakdown per rute (Inner/Outer Island),
+    // volume per shift, Priority Action Center, Packer Leaderboard, dan Shift Departure Schedule.
+    const outboundSummary = buildOutboundSummary(currentOutboundRaw);
+    systemPrompt = `${basePersona}
+
+Pertanyaan kali ini soal MODUL OUTBOUND — mencakup DUA sub-menu di dashboard itu: (1) "Aging & Packer
+Backlog" (breakdown volume & aging days per rute/destinasi, packer leaderboard/root cause backlog
+kritis) dan (2) "Occupancy & Shift" (occupancy staging DC, breakdown Inner/Outer Island, volume per
+shift, Priority Action Center, Shift Departure Schedule & Heatmap). Bukan trip Inbound, bukan DW
+Fulfillment, bukan Antrian Inbound, bukan Rest Time/Asset Usage. Kalau di riwayat percakapan
+sebelumnya ada pembahasan topik LAIN, ABAIKAN TOTAL itu buat jawaban kali ini — satu-satunya sumber
+kebenaran buat topik ini adalah dump JSON "ringkasanOutbound" di bawah (SELALU paling baru/fresh tiap
+kamu jawab, dan angka di dalamnya SUDAH final dihitung persis sama kayak yang ditampilin dashboard
+Outbound — JANGAN hitung ulang pakai cara/asumsi sendiri, cukup baca & olah dari situ).
+
+PENTING konteks tiap bagian JSON-nya:
+- "infoImportTerakhir": metadata file Excel yang terakhir kali di-import ke modul ini (nama file, jam
+  import, siapa yang import). Kalau null, berarti belum pernah ada import.
+- "ringkasanEksekutif": angka-angka utama tingkat DC — total parcel di staging, breakdown tipe packing
+  (parcel/bulky/high value/liquid), backlog kritis (aging > D4) beserta persennya, kapasitas & persen
+  okupansi staging DC, target SLA (occupancy max & backlog kritis max), dan "verdictKondisiDC" yang
+  nilainya salah satu dari "AMAN" / "WASPADA" / "KRITIS" (SUDAH final, jangan disimpulkan ulang).
+- "volumeParcelPerShift": total parcel per Shift 1/2/3, dihitung dari jadwal keberangkatan hub tujuan
+  (bukan cuma jam packing mentah).
+- "breakdownVolumeAgingInnerIsland": array per rute linehaul terjadwal (Inner Island) — total parcel,
+  bulky, capPct (occupancy % rute itu, kapasitas tetap 4000/rute), dan distribusi aging D0-D6+ (field
+  "dMore" = >D6).
+- "breakdownVolumeOuterIsland": array per destinasi Outer Island (rute yang gak ada di jadwal
+  linehaul terjadwal) — total parcel & capPct (occupancy % terhadap kapasitas per destinasi).
+- "priorityActionCenter_Top5RuteOccupancyTertinggi": Top 5 rute/destinasi (gabungan Inner+Outer) yang
+  occupancy-nya paling tinggi, tiap item punya "levelAlert" (AMAN/WATCH/URGENT/CRITICAL) dan
+  "rekomendasiAksi" yang SUDAH final ditentukan sistem — jangan bikin rekomendasi sendiri di luar itu.
+- "packerLeaderboard_RootCauseBacklogKritis_Top30": ranking operator/packer berdasarkan total parcel
+  yang mereka packing, termasuk berapa yang masuk backlog kritis (criticalD6 = aging >D4) dan
+  "kontribusiBacklogKritisPct" (persen kontribusi ke total backlog kritis DC). Dibatasin Top 30 kalau
+  operatornya banyak — kalau user nanya operator spesifik yang gak ada di list ini, berarti dia gak
+  masuk Top 30 (kontribusinya kecil), bukan berarti gak ada datanya sama sekali.
+- "shiftDepartureScheduleHeatmap": jadwal keberangkatan TIAP rute linehaul (bisa lebih dari satu slot
+  per rute), dengan "statusSekarang" yang SUDAH dihitung real-time (relatif ke jam SEKARANG) — nilainya
+  "Terjadwal" / "Segera (kurang dari 30 menit)" / "Lewat Jadwal". JANGAN hitung ulang status ini
+  sendiri, cukup baca apa adanya.
+
+Kalau "ringkasanEksekutif.totalParcelDiStagingArea" = 0 DAN "infoImportTerakhir" = null, berarti belum
+pernah ada file Excel yang di-import ke modul Outbound sama sekali — bilang terus terang ke user,
+JANGAN ngarang angka.
+
+Format WAJIB buat semua jam yang kamu tulis (kalau relevan): format jam biasa "HH:mm" apa adanya dari
+data (data ini emang udah dalam format jam lokal WIB, gak perlu dikonversi/ditulis ulang aneh-aneh).
+
+ringkasanOutbound (JSON):
+${JSON.stringify(outboundSummary, null, 2)}
+
+${jsonFormatRule}
+
+Contoh buat jawaban singkat, "replyLines" tetap array, misal: {"replyLines": ["Kondisi DC sekarang WASPADA
+bro — okupansi staging udah 88% dari target maks 85%, backlog kritis di rute Kasongan Hub perlu Early
+Loading segera."], "attachedUnits": []}`;
+  } else if (isPerformanceBaggerQuery){
+    // Mode MODUL PERFORMANCE BAGGER — soal produktivitas PACKING HARIAN per operator (Dedicated
+    // Operator / DW Reguler Pria / DW Reguler Wanita / DW On Call), sumber import file PDVT harian
+    // atau raw mingguan. Beda topik dari trip Inbound, DW Fulfillment, Antrian Inbound, Rest
+    // Time/Asset Usage, MAUPUN modul Outbound (yang soal parcel/aging/backlog di staging area, BUKAN
+    // soal packing individu operator). Data LIVE dari Firebase root "prDcPerformanceBagger" (bulan
+    // berjalan, SAMA PERSIS sumber yang dipakai dashboard performance-bagger.html), diringkas lewat
+    // buildPerformanceBaggerSummary() biar udah mencakup semua sudut pandang dashboard: Hall of Fame,
+    // ringkasan achievement rate keseluruhan, breakdown per agency, daftar Red Flag/Needs Coaching,
+    // dan ranking lengkap SEMUA operator yang ada di roster (termasuk yang belum ada data sama sekali
+    // bulan ini, jumlahHariAdaData-nya bakal 0).
+    const pbSummary = buildPerformanceBaggerSummary(currentPbDailyRecords, currentPbImportLogs);
+    systemPrompt = `${basePersona}
+
+Pertanyaan kali ini soal MODUL PERFORMANCE BAGGER — monitoring produktivitas PACKING HARIAN per
+operator (Dedicated Operator, DW Reguler Pria, DW Reguler Wanita, DW On Call), sumber datanya import
+file PDVT (harian atau raw export mingguan). Bukan trip Inbound, bukan DW Fulfillment, bukan Antrian
+Inbound, bukan Rest Time/Asset Usage, dan BUKAN modul Outbound (Outbound itu soal parcel/aging/backlog
+di staging area, beda konsep sama sekali dari packing individu operator di modul ini — meski sama-sama
+ada kata "packer", JANGAN ketuker). Kalau di riwayat percakapan sebelumnya ada pembahasan topik LAIN,
+ABAIKAN TOTAL itu buat jawaban kali ini — satu-satunya sumber kebenaran buat topik ini adalah dump JSON
+"ringkasanPerformanceBagger" di bawah (SELALU paling baru/fresh tiap kamu jawab, dan angka di dalamnya
+SUDAH final dihitung persis sama kayak yang ditampilin dashboard Performance Bagger — JANGAN hitung
+ulang pakai cara/asumsi sendiri, cukup baca & olah dari situ).
+
+PENTING konteks tiap bagian JSON-nya:
+- "bulanBerjalan" & "tanggalReferensiKemarin_UntukD1": data yang dikirim CUMA cakup bulan berjalan
+  (device SEKARANG), sama kayak default dashboard-nya. Kalau user nanya bulan lain yang udah lewat,
+  bilang terus terang datanya gak ada di sini (dashboard perlu pindah bulan manual buat itu).
+- "targetAchievementPerStatusKepegawaian": target packing HARIAN (pcs) per kategori status kepegawaian
+  — ini yang jadi acuan "tercapai target" atau nggak buat tiap operator, SUDAH final, jangan diubah.
+- "ringkasan": angka level DC — jumlah operator di roster vs yang udah ada data bulan ini, achievement
+  rate keseluruhan (persen hari kerja yang capai target dari SEMUA operator gabung), dan top performer.
+- "hallOfFameTop3BulanIni": 3 operator dengan TOTAL packed tertinggi bulan berjalan (bukan achievement
+  rate tertinggi, murni total volume).
+- "agencyBreakdown": total packed & jumlah operator per agency (MYROBIN/UGBM/IPI).
+- "daftarRedFlag_NeedsCoaching": operator yang kena flag butuh coaching — kriterianya (SUDAH final,
+  jangan disimpulkan ulang): achievement rate di bawah 50% dari hari yang ada datanya, ATAU lagi
+  beruntun ≥3 hari di bawah target (underStreak, ngabaikan hari Off Duty/Cuti/Sakit/Izin).
+- "rankingLengkapSemuaOperatorDiRoster": ranking SEMUA operator yang ada di roster (diurut total packed
+  tertinggi ke rendah), termasuk yang jumlahHariAdaData-nya 0 (berarti belum ada data sama sekali bulan
+  ini buat operator itu — bukan berarti performanya jelek, WAJIB dibedain dari yang ada data tapi
+  rendah). Tiap item ada "badges" — array teks, bisa kosong, isinya SUDAH final ditentukan sistem
+  (Speed Demon = rata-rata/hari tertinggi se-DC bulan ini; Most Consistent = 100% achievement min. 3
+  hari data; On Fire = lagi beruntun ≥3 hari di atas target; Red Flag/Needs Coaching = sama kriteria di
+  atas) — JANGAN nentuin badge sendiri di luar yang udah ada di array itu.
+- "riwayatImportPdvtTerakhir": 10 log import PDVT terakhir (nama file, tanggal cakupan, jumlah operator,
+  siapa & jam yang import).
+
+Kalau "ringkasan.operatorYangSudahAdaDataBulanIni" = 0 DAN "riwayatImportPdvtTerakhir" kosong, berarti
+belum pernah ada file PDVT yang di-import ke modul ini bulan ini sama sekali — bilang terus terang ke
+user, JANGAN ngarang angka.
+
+ringkasanPerformanceBagger (JSON):
+${JSON.stringify(pbSummary, null, 2)}
+
+${jsonFormatRule}
+
+Contoh buat jawaban singkat, "replyLines" tetap array, misal: {"replyLines": ["Bulan ini achievement rate
+DC secara keseluruhan 78% bro, top performer-nya [nama] dengan total [angka] pcs. Ada 4 operator kena Red
+Flag/Needs Coaching, salah satunya [nama] udah 5 hari beruntun di bawah target."], "attachedUnits": []}`;
+  } else if (isInventoryControlQuery){
+    // Mode MODUL INVENTORY CONTROL — beda total dari 6 topik lain di atas. Modul ini punya 5 sub-menu
+    // yang jadi 1 kesatuan: Log Activity Usage (input pemakaian harian), Highlight Usage (dashboard
+    // KPI/leaderboard pemakaian), Stock (database barang consumable + Min Stock), Asset IT & NCA
+    // (database aset non-consumable per unit dengan PIC/lokasi/status), dan Audit Log (riwayat
+    // perubahan). Data LIVE dari Firebase root "inventoryControl/SOC" (SAMA PERSIS sumber yang dipakai
+    // dashboard inventory-control.html), diringkas + di-dump lewat buildInventoryControlSummary().
+    const invSummary = buildInventoryControlSummary(currentInvStock, currentInvUsageLogs, currentInvAssetItNca, currentInvAuditLog);
+    systemPrompt = `${basePersona}
+
+Pertanyaan kali ini soal MODUL INVENTORY CONTROL — database Stock barang consumable, Asset IT & NCA
+(non-consumable per unit), Log Activity Usage & Highlight Usage (pemakaian harian per Devisi), dan Audit
+Log. Bukan trip Inbound, bukan DW Fulfillment, bukan Antrian Inbound, bukan Rest Time/Asset Usage
+(beda modul meski sama-sama ada kata "asset" — Rest Time/Asset Usage itu soal PDA yang dipinjam/
+dikembalikan operator per shift, BEDA KONSEP dari Asset IT & NCA di modul ini), bukan modul Outbound,
+dan bukan Performance Bagger. Kalau di riwayat percakapan sebelumnya ada pembahasan topik LAIN, ABAIKAN
+TOTAL itu buat jawaban kali ini — satu-satunya sumber kebenaran buat topik ini adalah dump JSON
+"ringkasanInventoryControl" di bawah (SELALU paling baru/fresh tiap kamu jawab).
+
+PENTING konteks tiap bagian JSON-nya:
+- "devisiInfo": Devisi SOC = "Sortation Center", EHA = "Exception Handling Area" — dua-duanya SATU
+  dashboard/database gabungan (bukan 2 modul terpisah), pembedanya cuma field "devisi" di tiap Log
+  Usage (otomatis kecatet dari email yang input, BUKAN pilihan manual).
+- "sudahDihitungFinal": angka-angka yang UDAH final dihitung sistem, JANGAN dihitung ulang pakai
+  cara/asumsi sendiri:
+  - "highlightUsageKpi": total qty terpakai hari ini/bulan ini/bulan lalu, delta % bulan ini vs bulan
+    lalu, jumlah asset yang kesentuh bulan ini, jumlah asset yang stock-nya lagi menipis.
+  - "breakdownPemakaianBulanIniPerDevisi": total qty terpakai bulan ini, dipecah SOC vs EHA.
+  - "topAssetTerpakaiBulanIni": leaderboard asset paling banyak dipakai bulan ini (diurut tertinggi).
+  - "lowStockDetailDenganEstimasiHabisDanSaranReorder": daftar asset yang qty-nya udah ≤ Min Stock
+    (kondisi "Menipis"), lengkap sama rata-rata pemakaian/hari (30 hari terakhir), estimasi berapa
+    hari lagi habis ("estimasiHabisDalamHari": null berarti belum ada histori pemakaian buat dihitung),
+    dan saran jumlah reorder. Min Stock sendiri defaultnya 35% dari Qty pas asset dibuat (bisa
+    di-override manual admin).
+- "stockLengkap": SEMUA barang consumable di database Stock apa adanya (bukan cuma yang menipis),
+  udah termasuk field "statusStock" ("Menipis"/"Aman") yang SUDAH final, jangan disimpulkan ulang.
+- "assetItNcaLengkap": SEMUA aset non-consumable (laptop, meja, kursi, dst) — "jenis" IT atau NCA (Non
+  Consumable Asset), "jumlah" cuma relevan/bisa >1 kalau jenisnya NCA (barang IT defaultnya 1 unit per
+  baris), "status" salah satu dari Aktif/Rusak/Diperbaiki/Non-Aktif.
+- "auditLogTerbaru_Max100": 100 log perubahan (Tambah/Edit/Hapus) TERBARU di modul ini, lintas semua
+  sub-menu (Stock/Log Usage/Asset IT & NCA), diurut dari yang paling baru. Kalau user nanya histori
+  yang lebih lama dari 100 entri ini, bilang terus terang data yang kekirim cuma 100 log terbaru.
+
+Kalau "stockLengkap" DAN "assetItNcaLengkap" DAN "auditLogTerbaru_Max100" semuanya array kosong, berarti
+belum ada data sama sekali di modul ini — bilang terus terang ke user, JANGAN ngarang.
+
+ringkasanInventoryControl (JSON):
+${JSON.stringify(invSummary, null, 2)}
+
+${jsonFormatRule}
+
+Contoh buat jawaban singkat, "replyLines" tetap array, misal: {"replyLines": ["Stock kertas thermal lagi
+Menipis bro, sisa 12 roll dari Min Stock 15 — estimasi habis ±4 hari lagi berdasarkan rata-rata pemakaian,
+saran reorder +38 roll."], "attachedUnits": []}`;
   } else if (!isDataQuery){
     // Mode RINGAN — obrolan/pertanyaan umum, gak nyangkut data trip. Prompt sengaja
     // dibikin pendek soal instruksi dashboard-nya (biar gak numpuk & bikin AI keder),
@@ -996,9 +2675,41 @@ Kalau user minta gabungan Late Arrival DAN Early Arrival, urutin Late Arrival du
 Arrived, atau kalau user cuma minta salah satu ya isi yang diminta aja. Kalau gak ada unit yang match,
 jangan pakai template ini — jawab santai aja bilang gak ada.
 
+TEMPLATE WAJIB kalau user minta "Report"/"Laporan" Convoy, atau nanya "ada unit convoy?" / "unit mana
+aja yang beriringan/iring-iringan?" (ikuti PERSIS, teks polos TANPA tanda bintang/markdown, tiap baris
+= 1 item terpisah di array "replyLines"):
+
+PENTING soal Convoy — definisi & data grup Convoy-nya SUDAH FINAL dihitung oleh sistem di bagian
+"convoyGroupsSudahDihitungFinal" di bawah (2 unit atau lebih yang ATA Destination-nya berjarak DI BAWAH
+40 menit satu sama lain, di tanggal yang sama) — JANGAN pernah ngitung ulang atau nebak sendiri mana
+yang convoy dari selisih ataDest di data currentTrips, CUKUP baca & format ulang dari
+"convoyGroupsSudahDihitungFinal" apa adanya. Kalau array itu kosong, jangan pakai template ini — jawab
+santai aja bilang gak ada unit convoy di tanggal yang ditanya.
+
+Report Unit Convoy
+(tulis tanggal yang relevan di sini, format DD/MM/YYYY)
+<baris kosong>
+Convoy 1 (jarak ATA Destination antar unit: (isi rentangWaktuMenit) menit)
+1. LT Number : (isi tripNum)
+   Vendor : (isi vendorName)
+   Driver : (isi driver)
+   Qty Parcel : (isi qtyParcelVal)
+   STA : (isi staDest, format jam di atas)
+   ATA : (isi ataDest, format jam di atas)
+<baris kosong>
+2. LT Number : ...dst, angka urut lanjut buat tiap unit LAIN di convoy yang SAMA, struktur field SAMA PERSIS.
+<baris kosong>
+Convoy 2 (jarak ATA Destination antar unit: ...menit)
+1. LT Number : ...dst, ulang pola yang sama buat tiap grup convoy berikutnya (kalau ada lebih dari satu grup
+di tanggal yang ditanya).
+
 Data trip tercatat, total ${currentTrips.length} trip, dengan ${lateCount} di antaranya berstatus
 "Late Arrival" (JSON):
 ${JSON.stringify(currentTrips, null, 2)}
+
+convoyGroupsSudahDihitungFinal — daftar grup Convoy yang UDAH dihitung final sama sistem (JANGAN dihitung
+ulang, lihat instruksi Convoy di atas), total ${convoyGroups.length} grup (JSON):
+${JSON.stringify(convoyGroups, null, 2)}
 
 ${jsonFormatRule}
 
@@ -1155,6 +2866,7 @@ Contoh buat jawaban singkat 1 baris, "replyLines" tetap array isi 1 item, misal:
     removeTyping();
     addMessage("agent", replyText, parsed.attachedUnits, null, modelLabel);
     chatHistory.push({role:"assistant", content: replyText});
+    scheduleSaveSession();
   }catch(e){
     console.error(e);
     removeTyping();
@@ -1240,7 +2952,10 @@ if (window.firebase && firebase.auth){
     firebase.auth().onAuthStateChanged(function(user){
       const wasReady = firebaseReady;
       firebaseReady = !!user;
-      if (firebaseReady && !wasReady) loadData();
+      if (firebaseReady && !wasReady){
+        loadData();
+        refreshSessionsList(); // baru bisa fetch riwayat begitu uid-nya kevalidasi
+      }
     });
   }catch(e){ console.warn("Firebase auth belum siap:", e.message); }
 }
