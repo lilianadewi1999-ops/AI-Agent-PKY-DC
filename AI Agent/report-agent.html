@@ -281,9 +281,9 @@
       <div class="model-select-row">
         <select id="modelSelect" class="model-select" title="Pilih model AI">
           <option value="">Auto</option>
-          <option value="gemini-3.6-flash">Odyssey 3.6 Flash</option>
-          <option value="gemini-3.1-flash-lite">Odyssey 3.1 Flash Lite</option>
-          <option value="gemini-3.5-flash-lite">Odyssey 3.5 Flash Lite</option>
+          <option value="gemini-3.6-flash">Odyssey 3.6 Pro</option>
+          <option value="gemini-3.5-flash-lite">Odyssey 3.5</option>
+          <option value="gemini-3.1-flash-lite">Odyssey 3.1</option>
         </select>
       </div>
       <div class="img-preview-row" id="imgPreviewRow">
@@ -501,6 +501,22 @@ function typewriterInto(bubbleEl, fullText, onDone){
       if (onDone) onDone();
     }
   })();
+}
+
+// Mapping nama model "mentah" (dari value dropdown ATAU dari field
+// data.modelUsed/data.model yang dibalikin proxy) ke nama tampilan yang
+// gak nyebut vendor/tier aslinya (Gemini/Flash/Flash Lite) — biar konsisten
+// dipakai di dropdown MAUPUN badge label balasan (termasuk pas mode "Auto"
+// & proxy fallback ke model lain, yang balikin id mentah kayak
+// "gemini-3.6-flash").
+const ODYSSEY_MODEL_NAMES = {
+  "gemini-3.6-flash": "Odyssey 3.6 Pro",
+  "gemini-3.5-flash-lite": "Odyssey 3.5",
+  "gemini-3.1-flash-lite": "Odyssey 3.1"
+};
+function friendlyModelName(rawId){
+  if (!rawId) return "Auto";
+  return ODYSSEY_MODEL_NAMES[rawId] || "Odyssey";
 }
 
 function addMessage(role, text, attachUnits, imageDataUrl, modelLabel){
@@ -1129,8 +1145,12 @@ Contoh buat jawaban singkat 1 baris, "replyLines" tetap array isi 1 item, misal:
     // Label model yang jawab: pakai info dari proxy kalau ada (mis. dia fallback
     // ke model lain karena preferredModel kena limit), kalau gak ada fallback ke
     // model yang dipilih user di dropdown, atau "Auto" kalau dropdown-nya "Auto".
-    const modelLabel = (data && (data.modelUsed || data.model))
-      || (preferredModel ? modelSelectEl.options[modelSelectEl.selectedIndex].text : "Auto");
+    // Label model: selalu lewat friendlyModelName() biar nama vendor/tier
+    // asli (Gemini/Flash/Flash Lite) gak pernah nongol di UI, baik itu dari
+    // pilihan dropdown user ATAU dari id mentah yang dibalikin proxy waktu
+    // mode Auto/fallback.
+    const rawModelUsed = (data && (data.modelUsed || data.model)) || preferredModel || "";
+    const modelLabel = friendlyModelName(rawModelUsed);
 
     removeTyping();
     addMessage("agent", replyText, parsed.attachedUnits, null, modelLabel);
