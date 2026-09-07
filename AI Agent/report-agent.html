@@ -1761,7 +1761,7 @@ function addMessage(role, text, attachUnits, imageDataUrl, modelLabel, instant){
   const who = document.createElement("div");
   who.className = "who";
   const whoText = document.createElement("span");
-  whoText.textContent = role==="user" ? "Lo" : "Odyssey";
+  whoText.textContent = role==="user" ? getCurrentUserLabel() : "Odyssey";
   who.appendChild(whoText);
   if (role !== "user" && modelLabel){
     const badge = document.createElement("span");
@@ -1976,6 +1976,22 @@ function getCurrentUid(){
     const u = window.firebase && firebase.auth && firebase.auth().currentUser;
     return u ? u.uid : null;
   }catch(e){ return null; }
+}
+// Ubah email user yang lagi login jadi nama tampilan buat label chat.
+// Contoh: "irwan.faiz@spxexpress.com" -> "Irwan Faiz". Kalau gagal
+// (belum login / gak ada email di akun), fallback ke "Lo" kayak sebelumnya.
+function getCurrentUserLabel(){
+  try{
+    const u = window.firebase && firebase.auth && firebase.auth().currentUser;
+    if (!u || !u.email) return "Lo";
+    const namePart = u.email.split("@")[0];
+    const nameFormatted = namePart
+      .split(/[.\-_]+/)
+      .filter(Boolean)
+      .map(function(s){ return s.charAt(0).toUpperCase() + s.slice(1).toLowerCase(); })
+      .join(" ");
+    return nameFormatted || "Lo";
+  }catch(e){ return "Lo"; }
 }
 function newSessionId(){
   return "sess_" + Date.now() + "_" + Math.random().toString(36).slice(2, 8);
